@@ -1,0 +1,18 @@
+{
+    "contents" : "log2.HCR.ribo.data<-as.data.frame(cbind(human.log2ribo,chimp.log2ribo,rhesus.log2ribo))\n\n\nHCR.ribo.mean.cat <- cut(apply(cbind(\n  apply(log2.HCR.ribo.data[,1:5], 1, sd,na.rm=T),\n  apply(log2.HCR.ribo.data[,6:10], 1, sd,na.rm=T),\n  apply(log2.HCR.ribo.data[,11:15], 1, sd,na.rm=T)),1,mean)\n  , breaks=  summary(apply(cbind(\n    apply(log2.HCR.ribo.data[,1:5], 1, sd,na.rm=T),\n    apply(log2.HCR.ribo.data[,6:10], 1, sd,na.rm=T),\n    apply(log2.HCR.ribo.data[,11:15], 1, sd,na.rm=T)),1,mean)))                  \n\n\nlog2.HCR.ribo.data <- cbind(log2.HCR.ribo.data, HCR.ribo.mean.cat)                           \n\nH<-log2.HCR.ribo.data[,grepl(names(log2.HCR.ribo.data),pattern = \"H\")]%>% filter(as.numeric(HCR.ribo.mean.cat) == 1) \n\nR<-log2.HCR.ribo.data[,grepl(names(log2.HCR.ribo.data),pattern = \"R\")]%>% filter(as.numeric(HCR.ribo.mean.cat) == 1) \n\nC<-log2.HCR.ribo.data[,grepl(names(log2.HCR.ribo.data),pattern = \"C\")]%>% filter(as.numeric(HCR.ribo.mean.cat) == 1) \n\n",
+    "created" : 1444589310262.000,
+    "dirty" : true,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "3970653437",
+    "id" : "960C24AF",
+    "lastKnownWriteTime" : 4294967297,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "tempName" : "Untitled4"
+    },
+    "relative_order" : 4,
+    "source_on_save" : false,
+    "type" : "r_source"
+}

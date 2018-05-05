@@ -1,0 +1,570 @@
+---
+title: "ribo DE voom"
+author: "Sidney Wang"
+date: "July 25, 2016"
+output: html_document
+---
+
+load data
+```{r}
+load("../rdas/mm4.ribo.RData")
+load("../rdas/HCR.ortho.geneLength.rda")
+load("../rdas/HCR.mm4plus.cova.RData")
+# subset cova table to include only mm4 data
+mm4.cova<-subset(HCR.mm4plus.cova, libmix=="mm4")
+```
+
+filter, normalization and DE test using voom limma
+```{r}
+# label ENSGID as row names
+
+row.names(mm4.010716) <- mm4.010716$ENSGID
+
+# reguire at least 3 samples have data from each speceise
+count.filter<-c() 
+for (i in 1:length(mm4.010716[,1])){
+  count.filter[i] <- sum(mm4.010716[i,2:5] == 0) < 2 & sum(mm4.010716[i,6:9] == 0) < 2 & sum(mm4.010716[i,10:13] == 0) < 2
+}
+
+#mm4.count.gene.labeled<-mm4.010716[count.filter,]
+mm4.count<-mm4.010716[count.filter,-1]
+length(mm4.count[,1])
+
+######
+# write out filtered count table as File S1
+#fileS1 <- mm4.count
+#write.csv(fileS1,"../../tables/fileS1.csv",quote = FALSE,row.names = T)
+######
+
+
+# save data for genes that did not pass count filter to a new data frame
+
+mm4.low.expression.level<-mm4.010716[!count.filter,-1]
+
+# voom tranfromation and TMM normalization
+
+library(limma)
+library(edgeR)
+library(qvalue)
+
+species.label <- substring(names(mm4.count),1,1)
+design <- model.matrix(~species.label)
+
+colnames(design) <- c("Intercept","Human","Rhesus")
+
+
+ribo.dge <- DGEList(counts = mm4.count)
+
+ribo.dge <- calcNormFactors(ribo.dge)
+
+ribo.voom.dge <- voom(ribo.dge,design,plot=TRUE)
+
+boxplot(ribo.voom.dge$E)
+
+
+
+# fit lm and test log2CPM
+ 
+ribo.voom.fit <- lmFit(ribo.voom.dge,design = design)
+
+ribo.voom.fit <- eBayes(ribo.voom.fit)
+
+
+# compute log2RPKM
+
+mm4.ribo.log2rpkm<-cbind(log2(1000)+ribo.voom.dge$E[,1:4]-log2(HCR.geneLength$Chimp[count.filter]), log2(1000)+ribo.voom.dge$E[,5:8]-log2(HCR.geneLength$Rhesus[count.filter]), log2(1000)+ribo.voom.dge$E[,9:12]-log2(HCR.geneLength$Human[count.filter]))
+
+boxplot(mm4.ribo.log2rpkm)
+
+# lm fit and DE test with voom weights
+
+ribo.voom.RPKM.fit <- lmFit(mm4.ribo.log2rpkm,design = design,weights = ribo.voom.dge$weights)
+
+#ribo.voom.RPKM.fit <- lmFit(mm4.ribo.log2rpkm,design = design)
+
+
+HR.contrast <- makeContrasts(Human-Rhesus,levels = design)
+ribo.voom.RPKM.HR.fit <- contrasts.fit(ribo.voom.RPKM.fit,HR.contrast)
+
+ribo.voom.RPKM.fit <- eBayes(ribo.voom.RPKM.fit)
+ribo.voom.RPKM.HR.fit <- eBayes(ribo.voom.RPKM.HR.fit)
+
+
+mm4HvC.spe.effect<-ribo.voom.RPKM.fit$coefficient[,2]
+mm4RvC.spe.effect<-ribo.voom.RPKM.fit$coefficient[,3]
+mm4HvR.spe.effect<-ribo.voom.RPKM.HR.fit$coefficient[,1]
+
+
+mm4HvC.spe.pval<-ribo.voom.RPKM.fit$p.value[,2]
+mm4RvC.spe.pval<-ribo.voom.RPKM.fit$p.value[,3]
+mm4HvR.spe.pval<-ribo.voom.RPKM.HR.fit$p.value[,1]
+
+
+# plot test results compare between log2RPKM and log2CPM  
+#plot(ribo.voom.RPKM.fit$coefficients[,1],ribo.voom.fit$coefficients[,1])
+
+#plot(ribo.voom.RPKM.fit$coefficients[,2],ribo.voom.fit$coefficients[,2])
+#plot(ribo.voom.RPKM.fit$coefficients[,3],ribo.voom.fit$coefficients[,3])
+
+
+#plot(-log10(ribo.voom.RPKM.fit$p.value[,1]),-log10(ribo.voom.fit$p.value[,1]))
+
+#plot(-log10(ribo.voom.RPKM.fit$p.value[,2]),-log10(ribo.voom.fit$p.value[,2]))
+#plot(-log10(ribo.voom.RPKM.fit$p.value[,3]),-log10(ribo.voom.fit$p.value[,3]))
+
+
+
+# plot pvalue histogram
+
+hist(mm4HvC.spe.pval, main = "human vs. chimp", xlab = "p-value", breaks = 100)
+hist(mm4RvC.spe.pval, main = "rhesus vs. chimp", xlab = "p-value", breaks = 100)
+
+hist(mm4HvR.spe.pval, main = "human vs. rhesus", xlab = "p-value", breaks = 100)
+
+plot(qvalue(mm4HvC.spe.pval))
+plot(qvalue(mm4RvC.spe.pval))
+plot(qvalue(mm4HvR.spe.pval))
+
+
+
+HvC.qval<-qvalue(mm4HvC.spe.pval)$qvalues
+length(which(HvC.qval<0.01))
+RvC.qval<-qvalue(mm4RvC.spe.pval)$qvalues
+length(which(RvC.qval<0.01))
+HvR.qval<-qvalue(mm4HvR.spe.pval)$qvalues
+length(which(HvR.qval<0.01))
+
+species.DE.qval.1percent <- as.data.frame(cbind(HvC.qval<0.01,RvC.qval<0.01,HvR.qval<0.01))
+names(species.DE.qval.1percent) <- c("HvC","RvC","HvR")
+vennDiagram(species.DE.qval.1percent, circle.col = c("royal blue", "black", "tomato"),main="NO. of DE genes at 1% FDR")
+
+
+HvC.FWER <- p.adjust(mm4HvC.spe.pval,method = "bonferroni")
+length(which(p.adjust(mm4HvC.spe.pval,method = "bonferroni")<0.1))
+
+RvC.FWER <- p.adjust(mm4RvC.spe.pval,method = "bonferroni")
+length(which(p.adjust(mm4RvC.spe.pval,method = "bonferroni")<0.1))
+
+HvR.FWER <- p.adjust(mm4HvR.spe.pval,method = "bonferroni")
+length(which(p.adjust(mm4HvR.spe.pval,method = "bonferroni")<0.1))
+
+
+ribo.DE.results <- cbind(mm4HvC.spe.effect, mm4RvC.spe.effect, mm4HvR.spe.effect, mm4HvC.spe.pval, mm4RvC.spe.pval, mm4HvR.spe.pval, HvC.qval, RvC.qval, HvR.qval, HvC.FWER, RvC.FWER, HvR.FWER)
+
+colnames(ribo.DE.results)[1:9] <- c("HvC.beta","RvC.beta","HvR.beta", "HvC.pvalue","RvC.pvalue","HvR.pvalue", "HvC.FDR","RvC.FDR","HvR.FDR")
+
+######
+#fileS2 <- ribo.DE.results
+#write.csv(fileS2,"../../tables/fileS2.csv",quote = FALSE,row.names = T)
+######
+length(which(p.adjust(mm4HvC.spe.pval,method = "bonferroni")<0.05))
+length(which(p.adjust(mm4RvC.spe.pval,method = "bonferroni")<0.05))
+length(which(p.adjust(mm4HvR.spe.pval,method = "bonferroni")<0.05))
+
+
+# p value qqplot
+
+ribo.HvC.sorted.logP<--log10(sort(mm4HvC.spe.pval))
+ribo.RvC.sorted.logP<--log10(sort(mm4RvC.spe.pval))
+ribo.HvR.sorted.logP<--log10(sort(mm4HvR.spe.pval))
+
+expected <- c(1:length(mm4HvC.spe.pval)) 
+log.exp <- -(log10(expected / (length(expected)+1)))
+
+plot(c(0,7), c(0,7), col="red", lwd=3, type="l", xlab="Expected (-log10 Pvalue)", ylab="Observed (-log10 Pvalue)", xlim=c(0,5), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="translation")
+points(log.exp, ribo.HvC.sorted.logP, pch=18, cex=.4, col="orange") 
+points(log.exp, ribo.RvC.sorted.logP, pch=18, cex=.4, col="blue") 
+points(log.exp, ribo.HvR.sorted.logP, pch=18, cex=.4, col="dark grey") 
+legend("topleft",c("HvC","RvC","HvR"),col = c("orange","blue","dark grey"),pch=18,cex=.6, bty="n", horiz=TRUE)
+
+
+```
+
+compare results with and without adjusting for gender effect
+```{r}
+# load data from adiitional samples for adjusting sex effect
+load("../rdas/HCR.ribo.mm4.plus.RData")
+
+
+# subset to the set of genes considered 
+mm4.plus.count <- mm4.plus.010716[count.filter,-1]
+
+# estimate voom weight and TMM normalize data
+
+species.label <- substring(names(mm4.plus.count),1,1)
+design <- model.matrix(~species.label)
+
+colnames(design) <- c("Intercept","Human","Rhesus")
+
+ribo.dge <- DGEList(counts = mm4.plus.count)
+
+ribo.dge <- calcNormFactors(ribo.dge)
+
+ribo.voom.dge <- voom(ribo.dge,design,plot=TRUE)
+
+ribo.voom.weights<-ribo.voom.dge$weights
+
+boxplot(ribo.voom.dge$E)
+
+# convert to RPKM
+
+log2.HCR.plus.ribo.rpkm <- cbind(log2(1000)+ribo.voom.dge$E[,1:5]-log2(HCR.geneLength$Chimp[count.filter]),log2(1000)+ribo.voom.dge$E[,6:11]-log2(HCR.geneLength$Human[count.filter]),log2(1000)+ribo.voom.dge$E[,12:16]-log2(HCR.geneLength$Rhesus[count.filter]),log2(1000)+ribo.voom.dge$E[,17:26]-log2(HCR.geneLength$Human[count.filter]))
+
+boxplot(log2.HCR.plus.ribo.rpkm)
+
+
+
+
+## remove sex effect using combat
+
+library(sva)
+
+sex.label <- HCR.mm4plus.cova$sex
+
+ribo.sex.removed<-ComBat(dat = log2.HCR.plus.ribo.rpkm,mod = design,batch = as.factor(sex.label),par.prior = TRUE,prior.plots = FALSE)
+
+boxplot(ribo.sex.removed,outline=FALSE)
+
+
+## subset to mm4 samples
+
+mm4.ribo.sex.removed <- ribo.sex.removed[,which(HCR.mm4plus.cova$libmix == "mm4")]
+mm4.ribo.voom.weights <- ribo.voom.weights[,which(HCR.mm4plus.cova$libmix == "mm4")]
+
+species.label <- substring(colnames(mm4.ribo.sex.removed),1,1)
+design <- model.matrix(~species.label)
+
+# lm fit on adjusted data for species effect
+
+
+ribo.voom.RPKM.fit <- lmFit(mm4.ribo.sex.removed,design = design,weights = mm4.ribo.voom.weights)
+
+
+ribo.voom.RPKM.fit <- eBayes(ribo.voom.RPKM.fit)
+
+
+mm4HvC.sex.rm.spe.effect<-ribo.voom.RPKM.fit$coefficient[,2]
+mm4RvC.sex.rm.spe.effect<-ribo.voom.RPKM.fit$coefficient[,3]
+
+
+mm4HvC.sex.rm.spe.pval<-ribo.voom.RPKM.fit$p.value[,2]
+mm4RvC.sex.rm.spe.pval<-ribo.voom.RPKM.fit$p.value[,3]
+
+
+# make plots to visualize effects from removing sex effect
+# original vs. gender removed limma
+library(ggplot2)
+# HvC
+
+# slope
+r.squared <- format(cor(mm4HvC.sex.rm.spe.effect,mm4HvC.spe.effect)^2,digits = 2)
+
+F1S7a <- ggplot(mapping = aes(x=mm4HvC.sex.rm.spe.effect,y=mm4HvC.spe.effect))+geom_point(size=1, alpha=0.3)+geom_abline()+xlab("gender effect removed")+ylab("original")+ggtitle("translational level: log2(human/chimpanzee)")+annotate(geom="text",x=6,y=-7,label=paste("r^2 =",r.squared)) 
+
+F1S7a
+
+######
+#save figure F1S7a as pdf
+#pdf("../../figures/Fig1S7a.pdf", width = 4, height = 4)
+#F1S7a
+#dev.off()
+
+######
+# p value  
+r.squared <- format(cor(-log10(mm4HvC.sex.rm.spe.pval),-log10(mm4HvC.spe.pval))^2,digits = 2)
+
+F1S7b <- ggplot(mapping = aes(x=-log10(mm4HvC.sex.rm.spe.pval),y=-log10(mm4HvC.spe.pval)))+geom_point(size=1, alpha=0.3)+geom_abline()+xlab("gender effect removed")+ylab("original")+ggtitle("-log10(p-value) human vs chimpanzee")+annotate(geom="text",x=9,y=2,label=paste("r^2 =",r.squared)) 
+
+F1S7b
+
+######
+#save figure F1S7a as pdf
+
+#pdf("../../figures/Fig1S7b.pdf", width = 4, height = 4)
+#F1S7b
+#dev.off()
+
+
+######
+
+```
+
+
+
+plot DE results 
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+# human vs chimp volcano plot for a main figure
+
+# q value < 0.01
+
+point.color <- cut(HvC.qval,breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+ggplot(mapping = aes(x=mm4HvC.spe.effect,y=-log10(mm4HvC.spe.pval)))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(human/chimpanzee)")+ylab("-log10(P-value)")+ggtitle("Differential translation: human vs. chimpanzee")+scale_x_continuous(limits = c(-10, 10)) +theme_bw()
+
+
+
+# highlight a data point ENSG00000101384, JAG1
+
+ribo.HC.volcano<-as.data.frame(t(rbind(mm4HvC.spe.effect,-log10(mm4HvC.spe.pval))))
+names(ribo.HC.volcano)<-c("fold","logPval")
+point.color <- cut(HvC.qval,breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+
+
+ggplot(data = ribo.HC.volcano, mapping = aes(x=fold,y=logPval))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(human/chimpanzee)")+ylab("-log10(P-value)")+ggtitle("Differential translation: human vs. chimpanzee")+scale_x_continuous(limits = c(-10, 10)) +theme_bw() +geom_point(data = ribo.HC.volcano[which(rownames(mm4.ribo.log2rpkm) == "ENSG00000101384"),],color="tomato") + geom_text(data = ribo.HC.volcano[which(rownames(mm4.ribo.log2rpkm) == "ENSG00000101384"),],label="JAG1", vjust=1.7, hjust=0.7)
+
+
+
+
+ggplot(data = ribo.HC.volcano, mapping = aes(x=fold,y=logPval))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(human/chimpanzee)")+ylab("-log10(P-value)")+ggtitle("Differential translation: human vs. chimpanzee")+scale_x_continuous(limits = c(-10, 10)) +theme_bw() +geom_point(data = ribo.HC.volcano[which(rownames(mm4.ribo.log2rpkm) == "ENSG00000171314"),],color="tomato") + geom_text(data = ribo.HC.volcano[which(rownames(mm4.ribo.log2rpkm) == "ENSG00000171314"),],label="PGAM1", vjust=1.7, hjust=0.7)
+
+
+
+
+# plot out example DE genes between human and chimp 
+gene.selected<-as.data.frame(t(mm4.ribo.log2rpkm[which(-log10(mm4HvC.spe.pval)>7.5),-5:-8]))
+names(gene.selected)<-c(as.character(row.names(mm4.count[which(-log10(mm4HvC.spe.pval)>7.5),])))
+
+gene.selected<-melt(gene.selected)
+
+gene.selected$species<-rep(c("chimp","human"),c(4,4))
+names(gene.selected)<-c("ENSGID","log2RPKM","species")
+
+gene.selected  %>% ggplot(aes(x=species,y=log2RPKM))+geom_point(aes(color = species), size=2.5) + scale_colour_manual(values = c("sky blue","black"))+theme_bw(base_size = 15)+facet_wrap(~ENSGID)
+
+# plot only JAG1
+gene.selected %>% filter(ENSGID == "ENSG00000101384") %>% ggplot(aes(x=species,y=log2RPKM))+geom_point(aes(color = species), size=2.5) + scale_colour_manual(values = c("sky blue","black"))+theme_bw(base_size = 15)+theme(legend.position="none")+ggtitle("JAG1")
+
+
+# plot only PGAM1
+F1d <- gene.selected %>% filter(ENSGID == "ENSG00000171314") %>% ggplot(aes(x=species,y=log2RPKM))+geom_point(aes(color = species), size=2.5) + scale_colour_manual(values = c("sky blue","black"))+theme_bw(base_size = 15)+theme(legend.position="none")+ggtitle("PGAM1")+ylim(c(3,11))
+
+F1d
+###### figure 1d
+# write the plots out as pdf
+
+#pdf("../../figures/Fig1d.pdf", width = 4, height = 4)
+#F1d
+#dev.off()
+
+######
+
+# family-wised error rate < 0.05
+
+ribo.HC.volcano<-as.data.frame(t(rbind(mm4HvC.spe.effect,-log10(mm4HvC.spe.pval))))
+names(ribo.HC.volcano)<-c("fold","logPval")
+point.color <- cut(p.adjust(mm4HvC.spe.pval,method = "bonferroni"),breaks = c (0,0.05,1), labels = c("blue","grey50"))
+
+
+#point.color <- cut(p.adjust(mm4HvC.spe.pval,method = "bonferroni"),breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+F1c <- ggplot(data = ribo.HC.volcano, mapping = aes(x=fold,y=logPval))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(human/chimpanzee)")+ylab("-log10(p-value)")+ggtitle("Differential translation: human vs. chimp")+scale_x_continuous(limits = c(-10, 10))+theme_bw()+geom_point(data = ribo.HC.volcano[which(rownames(mm4.ribo.log2rpkm) == "ENSG00000171314"),],color="tomato") + geom_text(data = ribo.HC.volcano[which(rownames(mm4.ribo.log2rpkm) == "ENSG00000171314"),],label="PGAM1", vjust=1.7, hjust=0.7)
+
+F1c
+###### figure 1c
+# write the plots out as pdf
+
+#pdf("../../figures/Fig1c.pdf", width = 4, height = 3)
+#F1c
+#dev.off()
+
+######
+
+
+
+### chimp vs. rhesus and human vs. rhesus volcano plot for supp figures
+
+## RvC
+point.color <- cut(p.adjust(mm4RvC.spe.pval,method = "bonferroni"),breaks = c (0,0.05,1), labels = c("blue","grey50"))
+F1S6a <- ggplot(mapping = aes(x=mm4RvC.spe.effect,y=-log10(mm4RvC.spe.pval)))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(rhesus/chimpanzee)")+ylab("-log10(p-value)")+ggtitle("Differential translation: rhesus vs. chimpanzee")+scale_x_continuous(limits = c(-10, 10)) +theme_bw()
+F1S6a
+###### figure 1_S6a
+# write the plots out as pdf
+
+#pdf("../../figures/Fig1S6a.pdf", width = 5, height = 3)
+#F1S6a
+#dev.off()
+
+######
+
+
+## HvR
+point.color <- cut(p.adjust(mm4HvR.spe.pval,method = "bonferroni"),breaks = c (0,0.05,1), labels = c("blue","grey50"))
+F1S6b <- ggplot(mapping = aes(x=mm4HvR.spe.effect,y=-log10(mm4HvR.spe.pval)))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(human/rhesus)")+ylab("-log10(p-value)")+ggtitle("Differential translation: rhesus vs. human")+scale_x_continuous(limits = c(-10, 10)) +theme_bw()
+F1S6b
+
+###### figure 1_S6b
+
+# write the plots out as pdf
+
+#pdf("../../figures/Fig1S6b.pdf", width = 5, height = 3)
+#F1S6b
+#dev.off()
+
+
+######
+
+
+```
+
+
+Correlation heatmap
+
+```{r}
+
+my_palette <- colorRampPalette(c("royalblue", "white", "dark red"))(n = 99)
+library("gplots")
+
+heatmap.2(cor(mm4.ribo.log2rpkm, method = "spearman",use = "complete.obs"), scale="none", trace="none", density.info="none", col=my_palette, dendrogram = "column")
+
+#heatmap(cor(mm4.ribo.log2rpkm, method = "spearman",use = "complete.obs"),scale = "none",ColSideColors = c(rep("sky blue",4),rep( "dark orange",4),rep("black",4)))
+
+
+###### F1S5
+# write the plots out as pdf
+#pdf("../../figures/Fig1S5.pdf", width = 6, height = 6)
+#heatmap.2(cor(mm4.ribo.log2rpkm, method = "spearman",use = "complete.obs"), scale="none", trace="none", density.info="none", col=my_palette, dendrogram = "column", keysize = 1.3, key.xlab = "rho")
+#dev.off()
+######
+
+```
+
+
+PCA
+```{r}
+#library(ggplot2)
+#library(reshape2)
+#library(dplyr)
+
+pc<-prcomp(t(na.omit(mm4.ribo.log2rpkm)),center = T,scale = T)
+barplot((pc$sdev)^2/sum((pc$sdev)^2), names.arg =  colnames(pc$x))
+percent.explained <- (pc$sdev)^2/sum((pc$sdev)^2)
+temp.data<-as.data.frame(cbind(melt(pc$x),pc$x[,1],mm4.cova$species))
+
+names(temp.data)<-c("ID","PC","value","pc1","species")
+
+temp.data %>% filter(as.numeric(temp.data$PC) < 10) %>% ggplot(aes(x=pc1,y=value))+geom_point(aes(color = species))+facet_wrap(~PC)+labs(y="pcX")
+
+## need to plot PC1 vs PC2 and change color scheme for the paper
+
+PC1vsPC2<-temp.data[13:24,]
+PC1vsPC2$species<-c(rep("chimp",4),rep("rhesus",4),rep("human",4))
+
+F1b <- PC1vsPC2  %>% ggplot(aes(x=pc1,y=value))+geom_point(aes(color = species), size=2.5) + scale_colour_manual(values = c("sky blue","black", "dark orange"))+ xlab(paste0("PC1 (",format(percent.explained[1]*100,digit=2), "%)")) + ylab(paste0("PC2 (",format(percent.explained[2]*100,digit=2), "%)"))+ggtitle("Principal components analysis")+xlim(c(-50,80))+ylim(c(-70,70))+theme_bw(base_size = 15) + theme(legend.key = element_blank())
+
+F1b
+
+###### figure 1b
+# write the plots out as pdf
+
+#pdf("../../figures/Fig1b.pdf", width = 6, height = 4)
+#F1b
+#dev.off()
+
+######
+
+```
+
+
+
+
+Identify genes that are either only expressed in one speceise or only missing in one species
+
+```{r}
+# compute RPKM for the left over genes
+# use library sizes estimated from the expressed genes
+ribo.low.expression.cpm <- t((t(mm4.low.expression.level) / ribo.dge$samples$lib.size)*10^6)
+ribo.low.expression.rpkm<-cbind(1000*ribo.low.expression.cpm[,1:4]/HCR.geneLength$Chimp[!count.filter], 1000*ribo.low.expression.cpm[,5:8]/HCR.geneLength$Rhesus[!count.filter], 1000*ribo.low.expression.cpm[,9:12]/HCR.geneLength$Human[!count.filter])
+
+
+# identify genes that are expressed in at least 1 species
+
+# set an RPKM cutoff for mean expression
+rpkm.cutoff <- 2^quantile(mm4.ribo.log2rpkm,0.25,na.rm = T)
+
+# For each gene in each species,allow only 1 missing value and require mean expression level greater than an RPKM cutoff at the first quatile of the set of genes that are "expressed" in all 3 species
+
+human.expressed<-c() 
+human.mean.rpkm<-apply(ribo.low.expression.rpkm[,9:12],1,mean)
+for (i in 1:length(mm4.low.expression.level[,1])){
+  human.expressed[i] <- sum(mm4.low.expression.level[i,9:12] == 0) < 2 & human.mean.rpkm[i] > rpkm.cutoff
+  }
+
+chimp.expressed<-c() 
+chimp.mean.rpkm<-apply(ribo.low.expression.rpkm[,1:4],1,mean)
+for (i in 1:length(mm4.low.expression.level[,1])){
+  chimp.expressed[i] <- sum(mm4.low.expression.level[i,1:4] == 0) < 2 & chimp.mean.rpkm[i] > rpkm.cutoff 
+  }
+
+rhesus.expressed<-c() 
+rhesus.mean.rpkm<-apply(ribo.low.expression.rpkm[,5:8],1,mean)
+for (i in 1:length(mm4.low.expression.level[,1])){
+  rhesus.expressed[i] <- sum(mm4.low.expression.level[i,5:8] == 0) < 2 & rhesus.mean.rpkm[i] > rpkm.cutoff
+  }
+
+species.specific <- as.data.frame(cbind(chimp.expressed,rhesus.expressed,human.expressed))
+names(species.specific)<-c("chimp","rhesus","human")
+vennDiagram(species.specific)
+
+mm4.low.expression.level$chimp.expressed <- chimp.expressed
+mm4.low.expression.level$rhesus.expressed <- rhesus.expressed
+mm4.low.expression.level$human.expressed <- human.expressed
+
+ribo.low.expression.rpkm<-as.data.frame(ribo.low.expression.rpkm)
+
+ribo.low.expression.rpkm$chimp.expressed <- chimp.expressed
+ribo.low.expression.rpkm$rhesus.expressed <- rhesus.expressed
+ribo.low.expression.rpkm$human.expressed <- human.expressed
+
+###################
+
+# species specific
+# For each gene from each species of interest, further require expression level to be "missing" (too low to quantify) from at least 3 samples from each of the other two species 
+
+human.specific<-c() 
+for (i in 1:length(mm4.low.expression.level[,1])){
+  human.specific[i] <- sum(mm4.low.expression.level[i,9:12] == 0) < 2 & human.mean.rpkm[i] > rpkm.cutoff & sum(mm4.low.expression.level[i,1:4] == 0) >2 & sum(mm4.low.expression.level[i,5:8] == 0) > 2
+}
+
+chimp.specific<-c() 
+for (i in 1:length(mm4.low.expression.level[,1])){
+  chimp.specific[i] <- sum(mm4.low.expression.level[i,1:4] == 0) < 2 & chimp.mean.rpkm[i] > rpkm.cutoff & sum(mm4.low.expression.level[i,9:12] == 0) >2 & sum(mm4.low.expression.level[i,5:8] == 0) > 2
+}
+
+rhesus.specific<-c() 
+for (i in 1:length(mm4.low.expression.level[,1])){
+  rhesus.specific[i] <- sum(mm4.low.expression.level[i,5:8] == 0) < 2 & rhesus.mean.rpkm[i] > rpkm.cutoff & sum(mm4.low.expression.level[i,9:12] == 0) >2 & sum(mm4.low.expression.level[i,1:4] == 0) > 2
+}
+
+species.specific <- as.data.frame(cbind(chimp.specific,rhesus.specific,human.specific))
+names(species.specific)<-c("chimp","rhesus","human")
+vennDiagram(species.specific)
+
+ribo.low.expression.rpkm$chimp.specific <- chimp.specific
+ribo.low.expression.rpkm$rhesus.specific <- rhesus.specific
+ribo.low.expression.rpkm$human.specific <- human.specific
+
+
+mm4.low.expression.level$chimp.specific <- chimp.specific
+mm4.low.expression.level$rhesus.specific <- rhesus.specific
+mm4.low.expression.level$human.specific <- human.specific
+
+# subset expressed genes
+
+ribo.species.specific.gene.rpkm <- ribo.low.expression.rpkm[chimp.expressed | rhesus.expressed | human.expressed,]
+ribo.species.specific.gene.count <- mm4.low.expression.level[chimp.expressed | rhesus.expressed | human.expressed,]
+dim(ribo.species.specific.gene.rpkm)
+
+######
+# write out species specific translation count table as File S3
+#fileS3 <- ribo.species.specific.gene.count
+#write.csv(fileS3,"../../tables/fileS3.csv",quote = FALSE,row.names = T)
+######
+
+```
+
+

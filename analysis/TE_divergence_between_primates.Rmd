@@ -1,0 +1,789 @@
+---
+title: "TE divergence between primates"
+output: html_document
+---
+
+load data
+```{r}
+# voom adjusted log2 RPKM, TMM normalized and batch effect adjusted 
+#load("../rdas/HCR.ribo.log2RPKM.TMM.batchAdjusted.RData")
+#load("../rdas/HCR.ribo.voom.weights.RData")
+#load("../rdas/HCR.RNA.log2RPKM.TMM.batchAdjusted.RData")
+#load("../rdas/HCR.RNA.voom.weights.RData")
+
+# TMM normalized log2 SILAC ratio
+#load("../rdas/HCR.protein.TMM.RData")
+
+```
+
+subset data to include only genes and samples quantified in protein data 
+```{r}
+# # remove data from reference 19238 line and save as ribo.ref 
+# ribo.ref <- ribo.batch.removed[,11]
+# ribo.data <- ribo.batch.removed[,-11]
+# ribo.weights <- ribo.voom.weights[,-11]
+# 
+# RNA.ref <- RNA.batch.removed[,11]
+# RNA.data <- RNA.batch.removed[,-11]
+# RNA.weights <- RNA.voom.weights[,-11]
+# 
+# # subset by rownames
+# 
+# # find genes that are qunatified in all three data types 
+# RNA.ribo.expressed <- intersect(rownames(RNA.data),  rownames(ribo.data)) 
+# 
+# all.expressed<- intersect(RNA.ribo.expressed,rownames(HCR.protein.TMM.norm.ESNGlabeled))
+# 
+# # number of genes quantified in all three data types
+# length(all.expressed)
+# 
+# 
+# ribo.expressed.data<-ribo.data[rownames(ribo.data) %in% all.expressed,]
+# ribo.expressed.weights<-ribo.weights[rownames(ribo.weights) %in% all.expressed,]
+# ribo.expressed.ref <- ribo.ref[names(ribo.ref) %in% all.expressed]
+# 
+# 
+# RNA.expressed.data<-RNA.data[rownames(RNA.data) %in% all.expressed,]
+# RNA.expressed.weights<-RNA.weights[rownames(RNA.weights) %in% all.expressed,]
+# RNA.expressed.ref <- RNA.ref[names(RNA.ref) %in% all.expressed]
+# 
+# 
+# protein.expressed.data<- HCR.protein.TMM.norm.ESNGlabeled[rownames(HCR.protein.TMM.norm.ESNGlabeled) %in% all.expressed,]
+# 
+# expressed.gene.names <- as.character(protein.expressed.data[,16])
+# names(expressed.gene.names) <- rownames(protein.expressed.data)
+# 
+# 
+# protein.expressed.data <- protein.expressed.data[,-16]
+
+######
+#save sup file S4 as an R object
+
+#protein.expressed.data <- as.matrix(protein.expressed.data)
+
+# save(list = c("ribo.expressed.data",
+# "ribo.expressed.weights",
+# "ribo.expressed.ref",
+# "RNA.expressed.data",
+# "RNA.expressed.weights",
+# "RNA.expressed.ref",
+# "protein.expressed.data"), file = "../../tables/fileS4.RData")
+
+######
+load("../tables/fileS4.RData")
+```
+
+
+test TE divergence between speciese
+
+```{r}
+# TE
+# limma interaction model
+
+library(limma)
+library(qvalue)
+
+RNA.ribo.combined <- cbind(RNA.expressed.data, ribo.expressed.data)
+RNA.ribo.weights <- cbind(RNA.expressed.weights, ribo.expressed.weights)
+
+species.label <- substring(colnames(RNA.ribo.combined),1,1)
+phenotype.label <- c(rep("rna",15),rep("ribo",15))
+
+design <- model.matrix(~species.label*phenotype.label)
+colnames(design)<-c("Int","Human","Rhesus","RNA","Human.RNA","Rhesus.RNA")
+
+
+TE.voom.fit <- lmFit(RNA.ribo.combined,design = design,weights = RNA.ribo.weights)
+HR.contrast <- makeContrasts(Human.RNA-Rhesus.RNA,levels = design)
+TE.voom.HR.fit <- contrasts.fit(TE.voom.fit,HR.contrast)
+
+TE.voom.fit <- eBayes(TE.voom.fit)
+TE.voom.HR.fit <- eBayes(TE.voom.HR.fit)
+
+# since default limma setting parameterized ribo as reference datatype,which results in a beta estimate of 1/TE. Instead of specifying RNA as the reference datatype (i.e. beta will be species difference of ribo/RNA) I decide to simply take the inverse of the coefficient to estimate TE (i.e. negate the coefficinet in log space)
+
+HvC.interaction.TE.effect<- -TE.voom.fit$coefficient[,5]
+RvC.interaction.TE.effect<- -TE.voom.fit$coefficient[,6]
+HvR.interaction.TE.effect <- -TE.voom.HR.fit$coefficient[,1]
+
+HvC.interaction.TE.pval<-TE.voom.fit$p.value[,5]
+RvC.interaction.TE.pval<-TE.voom.fit$p.value[,6]
+HvR.interaction.TE.pval<-TE.voom.HR.fit$p.value[,1]
+
+
+
+hist(HvC.interaction.TE.pval,breaks = 100)
+hist(RvC.interaction.TE.pval,breaks = 100)
+hist(HvR.interaction.TE.pval,breaks = 100)
+
+
+
+length(which(p.adjust(HvC.interaction.TE.pval,method = "bonferroni") < 0.05))
+length(which(p.adjust(RvC.interaction.TE.pval,method = "bonferroni") < 0.05))
+length(which(p.adjust(HvR.interaction.TE.pval,method = "bonferroni") < 0.05))
+
+
+diverged.TE <- cbind(p.adjust(HvC.interaction.TE.pval,method = "bonferroni") < 0.05,p.adjust(RvC.interaction.TE.pval,method = "bonferroni") < 0.05,p.adjust(HvR.interaction.TE.pval,method = "bonferroni") < 0.05)
+
+colnames(diverged.TE) <- c("HvC", "RvC", "HvR")
+
+vennDiagram(diverged.TE)
+
+
+
+######
+#save TE test restuls to sup file S5
+
+
+#TE.results <- cbind(HvC.interaction.TE.effect,RvC.interaction.TE.effect,HvR.interaction.TE.effect,HvC.interaction.TE.pval,RvC.interaction.TE.pval,HvR.interaction.TE.pval, qvalue(HvC.interaction.TE.pval)$qvalues, qvalue(RvC.interaction.TE.pval)$qvalues, qvalue(HvR.interaction.TE.pval)$qvalues, p.adjust(HvC.interaction.TE.pval,method = "bonferroni"), p.adjust(RvC.interaction.TE.pval,method = "bonferroni"), p.adjust(HvR.interaction.TE.pval,method = "bonferroni"))
+
+
+#colnames(TE.results) <- c("HvC.beta","RvC.beta","HvR.beta","HvC.pval","RvC.pval","HvR.pval","HvC.FDR","RvC.FDR","HvR.FDR","HvC.FWER","RvC.FWER","HvR.FWER")
+
+#write.csv(TE.results,"../../tables/FileS5.csv",quote = FALSE,row.names = TRUE)
+
+
+
+######
+
+```
+
+test RNA divergence between speciese
+
+```{r}
+# RNA
+
+species.label <- substring(colnames(RNA.expressed.data),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Human","Rhesus")
+
+
+RNA.voom.fit <- lmFit(RNA.expressed.data,design = design,weights = RNA.expressed.weights)
+HR.contrast <- makeContrasts(Human-Rhesus,levels = design)
+RNA.voom.HR.fit <- contrasts.fit(RNA.voom.fit,HR.contrast)
+
+RNA.voom.fit <- eBayes(RNA.voom.fit)
+RNA.voom.HR.fit <- eBayes(RNA.voom.HR.fit)
+
+
+
+HvC.RNA.effect<-RNA.voom.fit$coefficient[,2]
+RvC.RNA.effect<-RNA.voom.fit$coefficient[,3]
+HvR.RNA.effect <- RNA.voom.HR.fit$coefficient[,1]
+
+HvC.RNA.pval<-RNA.voom.fit$p.value[,2]
+RvC.RNA.pval<-RNA.voom.fit$p.value[,3]
+HvR.RNA.pval<-RNA.voom.HR.fit$p.value[,1]
+
+
+
+hist(HvC.RNA.pval,breaks = 100)
+hist(RvC.RNA.pval,breaks = 100)
+hist(HvR.RNA.pval,breaks = 100)
+
+
+
+length(which(p.adjust(HvC.RNA.pval,method = "bonferroni") < 0.05))
+length(which(p.adjust(RvC.RNA.pval,method = "bonferroni") < 0.05))
+length(which(p.adjust(HvR.RNA.pval,method = "bonferroni") < 0.05))
+
+```
+
+
+test ribo divergence between speciese
+```{r}
+
+# ribo
+
+species.label <- substring(colnames(ribo.expressed.data),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Human","Rhesus")
+
+
+ribo.voom.fit <- lmFit(ribo.expressed.data,design = design,weights = ribo.expressed.weights)
+HR.contrast <- makeContrasts(Human-Rhesus,levels = design)
+ribo.voom.HR.fit <- contrasts.fit(ribo.voom.fit,HR.contrast)
+
+ribo.voom.fit <- eBayes(ribo.voom.fit)
+ribo.voom.HR.fit <- eBayes(ribo.voom.HR.fit)
+
+
+
+HvC.ribo.effect<-ribo.voom.fit$coefficient[,2]
+RvC.ribo.effect<-ribo.voom.fit$coefficient[,3]
+HvR.ribo.effect <- ribo.voom.HR.fit$coefficient[,1]
+
+HvC.ribo.pval<-ribo.voom.fit$p.value[,2]
+RvC.ribo.pval<-ribo.voom.fit$p.value[,3]
+HvR.ribo.pval<-ribo.voom.HR.fit$p.value[,1]
+
+
+
+hist(HvC.ribo.pval,breaks = 100)
+hist(RvC.ribo.pval,breaks = 100)
+hist(HvR.ribo.pval,breaks = 100)
+
+
+
+length(which(p.adjust(HvC.ribo.pval,method = "bonferroni") < 0.05))
+length(which(p.adjust(RvC.ribo.pval,method = "bonferroni") < 0.05))
+length(which(p.adjust(HvR.ribo.pval,method = "bonferroni") < 0.05))
+
+diverged.ribo <- cbind(p.adjust(HvC.ribo.pval,method = "bonferroni") < 0.05,p.adjust(RvC.ribo.pval,method = "bonferroni") < 0.05,p.adjust(HvR.ribo.pval,method = "bonferroni") < 0.05)
+
+colnames(diverged.ribo) <- c("HvC", "RvC", "HvR")
+
+vennDiagram(diverged.ribo)
+
+```
+
+
+
+estimate TE coefficient for human and chimp
+```{r}
+# chimp
+chimp.RNA.ribo.data <- cbind(RNA.expressed.data[,1:5],ribo.expressed.data[,1:5])
+chimp.RNA.ribo.weights <- cbind(RNA.expressed.weights[,1:5],ribo.expressed.weights[,1:5])
+phenotype.label <- c(rep("rna",5),rep("ribo",5))
+design <- model.matrix(~phenotype.label)
+colnames(design)<-c("Int","RNA")
+
+chimp.TE.voom.fit <- lmFit(chimp.RNA.ribo.data,design = design,weights = chimp.RNA.ribo.weights)
+
+chimp.TE <- -chimp.TE.voom.fit$coefficient[,2]
+
+# human
+
+human.RNA.ribo.data <- cbind(RNA.expressed.data[,6:10],ribo.expressed.data[,6:10])
+human.RNA.ribo.weights <- cbind(RNA.expressed.weights[,6:10],ribo.expressed.weights[,6:10])
+phenotype.label <- c(rep("rna",5),rep("ribo",5))
+design <- model.matrix(~phenotype.label)
+colnames(design)<-c("Int","RNA")
+
+human.TE.voom.fit <- lmFit(human.RNA.ribo.data,design = design,weights = human.RNA.ribo.weights)
+
+human.TE <- -human.TE.voom.fit$coefficient[,2]
+
+human.TE.voom.fit <- eBayes(human.TE.voom.fit)
+
+human.TE.pval<-human.TE.voom.fit$p.value[,2]
+
+#rhesus
+
+rhesus.RNA.ribo.data <- cbind(RNA.expressed.data[,11:15],ribo.expressed.data[,11:15])
+rhesus.RNA.ribo.weights <- cbind(RNA.expressed.weights[,11:15],ribo.expressed.weights[,11:15])
+phenotype.label <- c(rep("rna",5),rep("ribo",5))
+design <- model.matrix(~phenotype.label)
+colnames(design)<-c("Int","RNA")
+
+rhesus.TE.voom.fit <- lmFit(rhesus.RNA.ribo.data,design = design,weights = rhesus.RNA.ribo.weights)
+
+rhesus.TE <- -rhesus.TE.voom.fit$coefficient[,2]
+
+```
+
+
+
+Scatter plot of TE comparing between species with significant genes highlighted
+```{r}
+
+library(ggplot2)
+
+
+# human vs chimp TE divergence plot for a main figure
+
+HvC.FWER<-p.adjust(HvC.interaction.TE.pval,method = "bonferroni")
+
+#HvC.qval<- HvC.interaction.TE.qval$qvalues
+
+# color by FWER value < 0.05
+point.color <- cut(HvC.FWER,breaks = c (0,0.05,1), labels = c("blue","grey50"))
+
+#point.color <- cut(HvC.qval,breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+
+ggplot(mapping = aes(x=HvC.interaction.TE.effect,y=-log10(HvC.interaction.TE.pval)))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(human/chimpanzee)")+ylab("-log10(P-value)")+ggtitle("Differential TE: human vs. chimpanzee")+scale_x_continuous(limits = c(-10, 10)) +theme_bw()
+
+
+ggplot(mapping = aes(x=HvC.RNA.effect,y=HvC.ribo.effect))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(human/chimpanzee) RNA")+ylab("log2(human/chimpanzee) ribo")+ggtitle("Differential TE: human vs. chimpanzee")+scale_x_continuous(limits = c(-10, 10))+scale_y_continuous(limits = c(-10, 10))+theme_bw()+geom_abline(slope = 1, intercept = 0)
+
+r.squared<-format(cor(human.TE,chimp.TE)^2, digits = 2)
+
+F2a <- ggplot(mapping = aes(x=human.TE,y=chimp.TE))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(TE) human")+ylab("log2(TE) chimpanzee")+ggtitle("Translation efficiency")+scale_x_continuous(limits = c(-8, 8))+scale_y_continuous(limits = c(-8, 8))+theme_bw()+geom_abline(slope = 1, intercept = 0)+annotate(geom="text",x=5,y=-5,label=paste("r^2 =",r.squared))
+
+F2a
+# ######
+# #save figure 2a as pdf
+# pdf("../../figures/Fig2a.pdf", width = 4, height = 4)
+# F2a
+# dev.off()
+# 
+# ######
+
+# plot out example TE diverged genes between human and chimp 
+library(dplyr)
+library(reshape2)
+TE.diverged <- cbind(RNA.expressed.data[HvC.FWER<0.05,1:10],ribo.expressed.data[HvC.FWER<0.05,1:10])
+TE.dverged.genes <- as.data.frame(t(TE.diverged))
+
+gene.selected<-melt(TE.dverged.genes)
+
+gene.selected$species <- rep(c("chimp","human"),c(5,5))
+gene.selected$datatype <- rep(c("RNA-seq","ribo-seq"),c(10,10)) 
+names(gene.selected)<-c("ENSGID","log2RPKM","species","data type")
+
+gene.selected  %>% ggplot(aes(x=species,y=log2RPKM))+geom_point(aes(color = `data type`), size=2.5) + scale_colour_manual(values = c("royal blue","dark red"))+theme_bw(base_size = 15)+facet_wrap(~ENSGID)+theme(legend.key = element_blank())
+
+# plot only PFN1
+
+F2b <- gene.selected %>% filter(ENSGID == "ENSG00000108518") %>% ggplot(aes(x=species,y=log2RPKM))+geom_point(aes(color = `data type`), size=2.5) + scale_colour_manual(values = c("royal blue","dark red"))+theme_bw(base_size = 15)+ggtitle("PFN1")+ylim(c(3,13))+theme(legend.key = element_blank())
+
+
+F2b
+# ######
+# #save figure 2b as pdf
+# pdf("../../figures/Fig2b.pdf", width = 6, height = 4)
+# F2b
+# dev.off()
+# 
+# ######
+
+## plotting other 2 pairwise comparison for supplemental figs
+
+# human vs rhesus TE divergence plot for a main figure
+
+HvR.FWER<-p.adjust(HvR.interaction.TE.pval,method = "bonferroni")
+
+#HvR.qval<- HvR.interaction.TE.qval$qvalues
+
+# color by FWER value < 0.05
+point.color <- cut(HvR.FWER,breaks = c (0,0.05,1), labels = c("blue","grey50"))
+
+#point.color <- cut(HvR.qval,breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+
+ggplot(mapping = aes(x=HvR.interaction.TE.effect,y=-log10(HvR.interaction.TE.pval)))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(human/rhesus)")+ylab("-log10(P-value)")+ggtitle("Differential TE: human vs. rhesus")+scale_x_continuous(limits = c(-10, 10)) +theme_bw()
+
+
+ggplot(mapping = aes(x=HvR.RNA.effect,y=HvR.ribo.effect))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(human/rhesus) RNA")+ylab("log2(human/rhesus) ribo")+ggtitle("Differential TE: human vs. rhesus")+scale_x_continuous(limits = c(-10, 10))+scale_y_continuous(limits = c(-10, 10))+theme_bw()+geom_abline(slope = 1, intercept = 0)
+
+r.squared<-format(cor(human.TE,rhesus.TE)^2, digits = 2)
+
+F2S1a <- ggplot(mapping = aes(x=human.TE,y=rhesus.TE))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(TE) human")+ylab("log2(TE) rhesus")+ggtitle("Translation efficiency")+scale_x_continuous(limits = c(-8, 8))+scale_y_continuous(limits = c(-8, 8))+theme_bw()+geom_abline(slope = 1, intercept = 0)+annotate(geom="text",x=5,y=-5,label=paste("r^2 =",r.squared))
+
+F2S1a
+# ######
+# #save figure 2a as pdf
+# pdf("../../figures/Fig2S1a.pdf", width = 4, height = 4)
+# F2S1a
+# dev.off()
+# 
+# ######
+
+# chimp vs rhesus TE divergence plot for a main figure
+
+RvC.FWER<-p.adjust(RvC.interaction.TE.pval,method = "bonferroni")
+
+#RvC.qval<- RvC.interaction.TE.qval$qvalues
+
+# color by FWER value < 0.05
+point.color <- cut(RvC.FWER,breaks = c (0,0.05,1), labels = c("blue","grey50"))
+
+#point.color <- cut(RvC.qval,breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+
+ggplot(mapping = aes(x=RvC.interaction.TE.effect,y=-log10(RvC.interaction.TE.pval)))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(chimp/rhesus)")+ylab("-log10(P-value)")+ggtitle("Differential TE: chimp vs. rhesus")+scale_x_continuous(limits = c(-10, 10)) +theme_bw()
+
+
+ggplot(mapping = aes(x=RvC.RNA.effect,y=RvC.ribo.effect))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(chimp/rhesus) RNA")+ylab("log2(chimp/rhesus) ribo")+ggtitle("Differential TE: chimp vs. rhesus")+scale_x_continuous(limits = c(-10, 10))+scale_y_continuous(limits = c(-10, 10))+theme_bw()+geom_abline(slope = 1, intercept = 0)
+
+r.squared<-format(cor(chimp.TE,rhesus.TE)^2, digits = 2)
+
+F2S1b <- ggplot(mapping = aes(x=chimp.TE,y=rhesus.TE))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(TE) chimpanzee")+ylab("log2(TE) rhesus")+ggtitle("Translation efficiency")+scale_x_continuous(limits = c(-8, 8))+scale_y_continuous(limits = c(-8, 8))+theme_bw()+geom_abline(slope = 1, intercept = 0)+annotate(geom="text",x=5,y=-5,label=paste("r^2 =",r.squared))
+
+F2S1b
+# ######
+# #save figure 2a as pdf
+# pdf("../../figures/Fig2S1b.pdf", width = 4, height = 4)
+# F2S1b
+# dev.off()
+# 
+# ######
+
+
+
+```
+
+p value QQplot and effect size boxplot RNA vs. TE
+```{r}
+
+
+# RNA vs TE
+# HvC
+
+TE.HvC.sorted.logP<--log10(sort(HvC.interaction.TE.pval))
+
+RNA.HvC.sorted.logP<--log10(sort(HvC.RNA.pval))
+
+
+
+expected <- c(1:length(HvC.interaction.TE.pval)) 
+log.exp <- -(log10(expected / (length(expected)+1)))
+
+
+plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 Pvalue)", ylab="Observed (-log10 Pvalue)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="human vs chimpanzee")
+points(log.exp, TE.HvC.sorted.logP, pch=18, cex=.6, col="orange") 
+points(log.exp, RNA.HvC.sorted.logP, pch=18, cex=.6, col="blue") 
+legend("topleft",c("RNA","TE"),col = c("blue","orange"),pch=18,cex=.6, bty="n", horiz=TRUE)
+
+# ######
+# #save figure 2c as pdf
+# pdf("../../figures/Fig2c.pdf", width = 4, height = 4)
+# plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 p-value)", ylab="Observed (-log10 p-value)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="human vs chimpanzee")
+# points(log.exp, TE.HvC.sorted.logP, pch=18, cex=.6, col="orange") 
+# points(log.exp, RNA.HvC.sorted.logP, pch=18, cex=.6, col="blue") 
+# legend("topleft",c("RNA","TE"),col = c("blue","orange"),pch=18,cex=.75, bty="n", horiz=TRUE)
+# dev.off()
+# 
+# ######
+
+#RvC
+# RNA vs TE
+
+TE.RvC.sorted.logP<--log10(sort(RvC.interaction.TE.pval))
+
+RNA.RvC.sorted.logP<--log10(sort(RvC.RNA.pval))
+
+
+
+expected <- c(1:length(RvC.interaction.TE.pval)) 
+log.exp <- -(log10(expected / (length(expected)+1)))
+
+
+plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 Pvalue)", ylab="Observed (-log10 Pvalue)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="rhesus vs chimpanzee")
+points(log.exp, TE.RvC.sorted.logP, pch=18, cex=.6, col="orange") 
+points(log.exp, RNA.RvC.sorted.logP, pch=18, cex=.6, col="blue") 
+legend("topleft",c("RNA","TE"),col = c("blue","orange"),pch=18,cex=.6, bty="n", horiz=TRUE)
+
+# ######
+# #save figure 2S2a as pdf
+# pdf("../../figures/Fig2S2a.pdf", width = 4, height = 4)
+# plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 p-value)", ylab="Observed (-log10 p-value)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="rhesus vs chimpanzee")
+# points(log.exp, TE.RvC.sorted.logP, pch=18, cex=.6, col="orange") 
+# points(log.exp, RNA.RvC.sorted.logP, pch=18, cex=.6, col="blue") 
+# legend("topleft",c("RNA","TE"),col = c("blue","orange"),pch=18,cex=0.75, bty="n", horiz=TRUE)
+# dev.off()
+# 
+# ######
+
+
+#HvR
+# RNA vs TE
+
+TE.HvR.sorted.logP<--log10(sort(HvR.interaction.TE.pval))
+
+RNA.HvR.sorted.logP<--log10(sort(HvR.RNA.pval))
+
+
+
+expected <- c(1:length(HvR.interaction.TE.pval)) 
+log.exp <- -(log10(expected / (length(expected)+1)))
+
+
+plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 Pvalue)", ylab="Observed (-log10 Pvalue)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="rhesus vs human")
+points(log.exp, TE.HvR.sorted.logP, pch=18, cex=.6, col="orange") 
+points(log.exp, RNA.HvR.sorted.logP, pch=18, cex=.6, col="blue") 
+legend("topleft",c("RNA","TE"),col = c("blue","orange"),pch=18,cex=.6, bty="n", horiz=TRUE)
+
+# ######
+# #save figure 2S2b as pdf
+# pdf("../../figures/Fig2S2b.pdf", width = 4, height = 4)
+# plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 p-value)", ylab="Observed (-log10 p-value)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="rhesus vs human")
+# points(log.exp, TE.HvR.sorted.logP, pch=18, cex=.6, col="orange") 
+# points(log.exp, RNA.HvR.sorted.logP, pch=18, cex=.6, col="blue") 
+# legend("topleft",c("RNA","TE"),col = c("blue","orange"),pch=18,cex=0.75, bty="n", horiz=TRUE)
+# dev.off()
+# 
+# ######
+
+
+
+
+# absolute log2 fold change
+
+# ID protein level divergent genes
+
+species.label <- substring(colnames(protein.expressed.data),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Human","Rhesus")
+
+
+protein.voom.fit <- lmFit(protein.expressed.data,design = design)
+HR.contrast <- makeContrasts(Human-Rhesus,levels = design)
+protein.voom.HR.fit <- contrasts.fit(protein.voom.fit,HR.contrast)
+
+protein.voom.fit <- eBayes(protein.voom.fit)
+protein.voom.HR.fit <- eBayes(protein.voom.HR.fit)
+
+
+
+HvC.protein.effect<-protein.voom.fit$coefficient[,2]
+RvC.protein.effect<-protein.voom.fit$coefficient[,3]
+HvR.protein.effect <- protein.voom.HR.fit$coefficient[,1]
+
+HvC.protein.pval<-protein.voom.fit$p.value[,2]
+RvC.protein.pval<-protein.voom.fit$p.value[,3]
+HvR.protein.pval<-protein.voom.HR.fit$p.value[,1]
+
+
+
+hist(HvC.protein.pval,breaks = 100)
+hist(RvC.protein.pval,breaks = 100)
+hist(HvR.protein.pval,breaks = 100)
+
+HvC.protein.qval<-qvalue(HvC.protein.pval,fdr.level = 0.01)
+RvC.protein.qval<-qvalue(RvC.protein.pval,fdr.level = 0.01)
+HvR.protein.qval<-qvalue(HvR.protein.pval,fdr.level = 0.01)
+
+
+wilcox.test(abs(HvC.interaction.TE.effect[HvC.protein.qval$significant]), abs(HvC.ribo.effect[HvC.protein.qval$significant]))
+
+boxplot(abs(HvC.interaction.TE.effect[HvC.protein.qval$significant]),  abs(HvC.ribo.effect[HvC.protein.qval$significant]), outline = FALSE, notch = TRUE, names = c("TE","ribo"),col = c("dark orange","royal blue"), ylab="absolute log2 fold difference", main="Effect size in human-chimpanzee divergence")
+
+wilcox.test(abs(HvC.interaction.TE.effect[HvC.protein.qval$significant]), abs(HvC.RNA.effect[HvC.protein.qval$significant]))
+
+boxplot(abs(HvC.interaction.TE.effect[HvC.protein.qval$significant]),  abs(HvC.RNA.effect[HvC.protein.qval$significant]), outline = FALSE, notch = TRUE, names = c("TE","RNA"),col = c("dark orange","royal blue"), ylab="absolute log2 fold difference", main="Effect size in human-chimpanzee divergence")
+
+
+wilcox.test(abs(RvC.interaction.TE.effect[RvC.protein.qval$significant]), abs(RvC.RNA.effect[RvC.protein.qval$significant]))
+
+boxplot(abs(RvC.interaction.TE.effect[RvC.protein.qval$significant]),  abs(RvC.RNA.effect[RvC.protein.qval$significant]), outline = FALSE, notch = TRUE, names = c("TE","RNA"),col = c("dark orange","royal blue"), ylab="absolute log2 fold difference", main="Effect size in rhesus-chimpanzee divergence")
+
+wilcox.test(abs(HvR.interaction.TE.effect[HvR.protein.qval$significant]), abs(HvR.RNA.effect[HvR.protein.qval$significant]))
+
+boxplot(abs(HvR.interaction.TE.effect[HvR.protein.qval$significant]),  abs(HvR.RNA.effect[HvR.protein.qval$significant]), outline = FALSE, notch = TRUE, names = c("TE","RNA"),col = c("dark orange","royal blue"), ylab="absolute log2 fold difference", main="Effect size in human-rhesus divergence")
+
+# ######
+# #save figure 2d as pdf
+# pdf("../../figures/Fig2d.pdf", width = 4, height = 4)
+# boxplot(abs(HvC.interaction.TE.effect[HvC.protein.qval$significant]),  abs(HvC.RNA.effect[HvC.protein.qval$significant]), outline = FALSE, notch = TRUE, names = c("TE","RNA"),col = c("dark orange","royal blue"), ylab="absolute log2 ratio", main="Effect size: human vs. chimpanzee")
+# dev.off()
+# 
+# ######
+
+
+# ######
+# #save figure 2S3a as pdf
+# pdf("../../figures/Fig2S3a.pdf", width = 4, height = 4)
+# boxplot(abs(RvC.interaction.TE.effect[RvC.protein.qval$significant]),  abs(RvC.RNA.effect[RvC.protein.qval$significant]), outline = FALSE, notch = TRUE, names = c("TE","RNA"),col = c("dark orange","royal blue"), ylab="absolute log2 fold difference", main="Effect size: rhesus vs. chimpanzee")
+# dev.off()
+# 
+# ######
+
+# ######
+# #save figure 2S3b as pdf
+# pdf("../../figures/Fig2S3b.pdf", width = 4, height = 4)
+# boxplot(abs(HvR.interaction.TE.effect[HvR.protein.qval$significant]),  abs(HvR.RNA.effect[HvR.protein.qval$significant]), outline = FALSE, notch = TRUE, names = c("TE","RNA"),col = c("dark orange","royal blue"), ylab="absolute log2 fold difference", main="Effect size: human vs. rhesus")
+# dev.off()
+# 
+# ######
+
+
+
+
+
+```
+
+
+
+RNA-protein divergence 
+```{r}
+protein.expressed.weights <- as.data.frame(replicate(15,apply(RNA.expressed.weights,1,mean)))
+colnames(protein.expressed.weights)<-colnames(protein.expressed.data)
+rownames(protein.expressed.weights)<-rownames(protein.expressed.data)
+
+RNA.protein.combined <- cbind(RNA.expressed.data, protein.expressed.data)
+RNA.protein.weights <- cbind(RNA.expressed.weights, protein.expressed.weights)
+
+species.label <- substring(colnames(RNA.protein.combined),1,1)
+species.label <- toupper(species.label)
+phenotype.label <- c(rep("rna",15),rep("protein",15))
+
+design <- model.matrix(~species.label*phenotype.label)
+colnames(design)<-c("Int","Human","Rhesus","RNA","Human.RNA","Rhesus.RNA")
+
+
+proteinRNA.voom.fit <- lmFit(RNA.protein.combined,design = design,weights = RNA.protein.weights)
+HR.contrast <- makeContrasts(Human.RNA-Rhesus.RNA,levels = design)
+proteinRNA.voom.HR.fit <- contrasts.fit(proteinRNA.voom.fit,HR.contrast)
+
+proteinRNA.voom.fit <- eBayes(proteinRNA.voom.fit)
+proteinRNA.voom.HR.fit <- eBayes(proteinRNA.voom.HR.fit)
+
+
+HvC.interaction.proteinRNA.effect<- -proteinRNA.voom.fit$coefficient[,5]
+RvC.interaction.proteinRNA.effect<- -proteinRNA.voom.fit$coefficient[,6]
+HvR.interaction.proteinRNA.effect <- -proteinRNA.voom.HR.fit$coefficient[,1]
+
+HvC.interaction.proteinRNA.pval<-proteinRNA.voom.fit$p.value[,5]
+RvC.interaction.proteinRNA.pval<-proteinRNA.voom.fit$p.value[,6]
+HvR.interaction.proteinRNA.pval<-proteinRNA.voom.HR.fit$p.value[,1]
+
+
+
+hist(HvC.interaction.proteinRNA.pval,breaks = 100)
+hist(RvC.interaction.proteinRNA.pval,breaks = 100)
+hist(HvR.interaction.proteinRNA.pval,breaks = 100)
+
+
+```
+
+proportion propagated downstream
+```{r}
+
+cor(HvC.interaction.proteinRNA.effect,HvC.interaction.TE.effect)^2
+
+cor(RvC.interaction.proteinRNA.effect,RvC.interaction.TE.effect)^2
+
+cor(HvR.interaction.proteinRNA.effect,HvR.interaction.TE.effect)^2
+
+
+r.squared<-format(cor(HvC.interaction.TE.effect,HvC.interaction.proteinRNA.effect)^2, digits = 2)
+
+# color by FWER value < 0.05
+point.color <- cut(HvC.FWER,breaks = c (0,0.05,1), labels = c("blue","grey50"))
+
+ggplot(mapping = aes(x=HvC.interaction.TE.effect, y=HvC.interaction.proteinRNA.effect))+geom_point(size=1, alpha=0.5, col=point.color)+xlab("log2(human/chimpanzee) ribo/RNA")+ ylab("log2(human/chimpanzee) protein/RNA")+ggtitle("human vs. chimpanzee")+scale_x_continuous(limits = c(-8, 8))+scale_y_continuous(limits = c(-8, 8))+theme_bw()+geom_abline(slope = 1, intercept = 0)+annotate(geom="text",x=5,y=-5,label=paste("r^2 =",r.squared))
+
+
+# protein cutoffs
+
+# HvC
+cutoffs<- seq(0,1,0.01)
+r.squared <- c()
+for (i in 1:length(cutoffs)){
+  r.squared[i] <- cor(HvC.ribo.effect[qvalue(HvC.protein.pval)$qvalues<cutoffs[i]],HvC.protein.effect[qvalue(HvC.protein.pval)$qvalues<cutoffs[i]])^2}
+
+plot(cutoffs,r.squared, ylim = c(0,1), pch=18, xlab = "FDR cutoff",main = "HvC: Proportion of divergence in translation propagate to protein levels")
+
+r.squared <- c()
+for (i in 1:length(cutoffs)){
+  r.squared[i] <- cor(HvC.interaction.TE.effect[qvalue(HvC.protein.pval)$qvalues<cutoffs[i]],HvC.interaction.proteinRNA.effect[qvalue(HvC.protein.pval)$qvalues<cutoffs[i]])^2}
+
+points(cutoffs,r.squared, col ="red",pch=18)
+
+legend("topright", c("transcription not accounted", "transcription accounted"), pch=18,col = c("black","red"), bty = "n")
+
+
+# ######
+# ##save figure 2e as pdf
+# pdf("../../figures/Fig2e.pdf", width = 6, height = 6)
+# 
+# # HvC
+# cutoffs<- seq(0,1,0.05)
+# r.squared <- c()
+# for (i in 1:length(cutoffs)){
+#   r.squared[i] <- cor(HvC.ribo.effect[qvalue(HvC.protein.pval)$qvalues<cutoffs[i]],HvC.protein.effect[qvalue(HvC.protein.pval)$qvalues<cutoffs[i]])^2}
+# 
+# plot(cutoffs,r.squared, ylim = c(0,1), pch=18, xlab = "FDR cutoff", ylab = "Proportion of variance explained (r^2)",main = "HvC: Proportion of TE divergence propagate to proteins")
+# 
+# r.squared <- c()
+# for (i in 1:length(cutoffs)){
+#   r.squared[i] <- cor(HvC.interaction.TE.effect[qvalue(HvC.protein.pval)$qvalues<cutoffs[i]],HvC.interaction.proteinRNA.effect[qvalue(HvC.protein.pval)$qvalues<cutoffs[i]])^2}
+# 
+# points(cutoffs,r.squared, col ="red",pch=18)
+# 
+# legend("topright", c("transcription not accounted", "transcription accounted"), pch=18,col = c("black","red"), bty = "n")
+# 
+# 
+# dev.off()
+# ######
+
+
+# RvC
+cutoffs<- seq(0,1,0.05)
+r.squared <- c()
+for (i in 1:length(cutoffs)){
+  r.squared[i] <- cor(RvC.ribo.effect[qvalue(RvC.protein.pval)$qvalues<cutoffs[i]],RvC.protein.effect[qvalue(RvC.protein.pval)$qvalues<cutoffs[i]])^2}
+
+plot(cutoffs,r.squared, ylim = c(0,1), pch=18, xlab = "FDR cutoff",main = "RvC: Proportion of divergence in translation propagate to protein levels")
+
+r.squared <- c()
+for (i in 1:length(cutoffs)){
+  r.squared[i] <- cor(RvC.interaction.TE.effect[qvalue(RvC.protein.pval)$qvalues<cutoffs[i]],RvC.interaction.proteinRNA.effect[qvalue(RvC.protein.pval)$qvalues<cutoffs[i]])^2}
+
+points(cutoffs,r.squared, col ="red",pch=18)
+
+legend("topright", c("transcription not accounted", "transcription accounted"), pch=18,col = c("black","red"), bty = "n")
+
+
+# ######
+# ##save figure 2S4a as pdf
+# pdf("../../figures/Fig2S4a.pdf", width = 6, height = 6)
+# 
+# # RvC
+# cutoffs<- seq(0,1,0.05)
+# r.squared <- c()
+# for (i in 1:length(cutoffs)){
+#   r.squared[i] <- cor(RvC.ribo.effect[qvalue(RvC.protein.pval)$qvalues<cutoffs[i]],RvC.protein.effect[qvalue(RvC.protein.pval)$qvalues<cutoffs[i]])^2}
+# 
+# plot(cutoffs,r.squared, ylim = c(0,1), pch=18, xlab = "FDR cutoff", ylab = "Proportion of variance explained (r^2)",main = "RvC: Proportion of TE divergence propagate to proteins")
+# 
+# r.squared <- c()
+# for (i in 1:length(cutoffs)){
+#   r.squared[i] <- cor(RvC.interaction.TE.effect[qvalue(RvC.protein.pval)$qvalues<cutoffs[i]],RvC.interaction.proteinRNA.effect[qvalue(RvC.protein.pval)$qvalues<cutoffs[i]])^2}
+# 
+# points(cutoffs,r.squared, col ="red",pch=18)
+# 
+# legend("topright", c("transcription not accounted", "transcription accounted"), pch=18,col = c("black","red"), bty = "n")
+# 
+# 
+# dev.off()
+# ######
+
+# HvR
+cutoffs<- seq(0,1,0.05)
+r.squared <- c()
+for (i in 1:length(cutoffs)){
+  r.squared[i] <- cor(HvR.ribo.effect[qvalue(HvR.protein.pval)$qvalues<cutoffs[i]],HvR.protein.effect[qvalue(HvR.protein.pval)$qvalues<cutoffs[i]])^2}
+
+plot(cutoffs,r.squared, ylim = c(0,1), pch=18, xlab = "FDR cutoff",main = "HvR: Proportion of divergence in translation propagate to protein levels")
+
+r.squared <- c()
+for (i in 1:length(cutoffs)){
+  r.squared[i] <- cor(HvR.interaction.TE.effect[qvalue(HvR.protein.pval)$qvalues<cutoffs[i]],HvR.interaction.proteinRNA.effect[qvalue(HvR.protein.pval)$qvalues<cutoffs[i]])^2}
+
+points(cutoffs,r.squared, col ="red",pch=18)
+
+legend("topright", c("transcription not accounted", "transcription accounted"), pch=18,col = c("black","red"), bty = "n")
+
+
+# ######
+# ##save figure 2S4b as pdf
+# pdf("../../figures/Fig2S4b.pdf", width = 6, height = 6)
+# 
+# # HvR
+# cutoffs<- seq(0,1,0.05)
+# r.squared <- c()
+# for (i in 1:length(cutoffs)){
+#   r.squared[i] <- cor(HvR.ribo.effect[qvalue(HvR.protein.pval)$qvalues<cutoffs[i]],HvR.protein.effect[qvalue(HvR.protein.pval)$qvalues<cutoffs[i]])^2}
+# 
+# plot(cutoffs,r.squared, ylim = c(0,1), pch=18, xlab = "FDR cutoff", ylab = "Proportion of variance explained (r^2)",main = "HvR: Proportion of TE divergence propagate to proteins")
+# 
+# r.squared <- c()
+# for (i in 1:length(cutoffs)){
+#   r.squared[i] <- cor(HvR.interaction.TE.effect[qvalue(HvR.protein.pval)$qvalues<cutoffs[i]],HvR.interaction.proteinRNA.effect[qvalue(HvR.protein.pval)$qvalues<cutoffs[i]])^2}
+# 
+# points(cutoffs,r.squared, col ="red",pch=18)
+# 
+# legend("topright", c("transcription not accounted", "transcription accounted"), pch=18,col = c("black","red"), bty = "n")
+# 
+# 
+# dev.off()
+# ######
+
+
+```

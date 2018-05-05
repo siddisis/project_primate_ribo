@@ -1,0 +1,402 @@
+---
+title: "sequencing stats and data qc"
+author: "Sidney Wang"
+date: "November 23, 2015"
+output: html_document
+---
+
+Data coverage (sequencing depth)
+```{r}
+library(ggplot2)
+load("../rdas/mm4.ribo.seqStat.RData")
+as.data.frame(t(mm4.seqStat.010716))->mm4.seqStat
+names(mm4.seqStat)<-c("number of reads","percent pass Q30")
+
+median(mm4.seqStat$`number of reads`)
+
+F1S1a <- ggplot(mm4.seqStat,aes(`number of reads`))+geom_histogram(binwidth=5e+6, center=7.5e+6)+geom_vline(xintercept=median(mm4.seqStat$`number of reads`),colour="yellow", size=0.75)+xlab("number of sequecning reads")+ggtitle("Total number of uniquely mapped reads")+xlim(c(0,3e7))
+
+F1S1a
+######
+#save figure F1S1a as pdf
+#pdf("../figures/Fig1S1a.pdf", width = 5, height = 4)
+#F1S1a
+#dev.off()
+
+######
+
+
+```
+
+%Q30
+
+```{r}
+F1S1b <- ggplot(mm4.seqStat,aes(`percent pass Q30`))+geom_histogram(binwidth=0.01,center=0.975)+xlim(0.8,1)+xlab("proportion")+ggtitle("Proportion of sequencing reads pass Q30")+geom_vline(xintercept=0.95,colour="yellow", size=0.75)
+
+F1S1b
+######
+#save figure F1S1b as pdf
+#pdf("../figures/Fig1S1b.pdf", width = 5, height = 4)
+#F1S1b
+#dev.off()
+
+######
+
+
+
+```
+
+
+RPF legnth distribution 
+
+```{r}
+load("../rdas/mm4.RPF.length.RData")
+# remove na by skipping the last row
+mm4.RPF.length<-mm4.RPF.length.010716[1:21,]
+# compute proportion by footprint length
+mm4.RPF.length.prop<-prop.table(as.matrix(mm4.RPF.length[,-1]),2)
+
+#compute human mean
+apply(mm4.RPF.length.prop[,grep("H",names(as.data.frame(mm4.RPF.length.prop)))],1,mean)->H.mean
+apply(mm4.RPF.length.prop[,grep("H",names(as.data.frame(mm4.RPF.length.prop)))],1,sd)/2->H.se
+as.data.frame(cbind(mm4.RPF.length$length,H.mean,H.se))->H.data
+names(H.data)<-c("length","proportion","se")
+H.data$species<-rep("human",21)
+
+# compute chimp mean
+apply(mm4.RPF.length.prop[,grep("C",names(as.data.frame(mm4.RPF.length.prop)))],1,mean)->C.mean
+apply(mm4.RPF.length.prop[,grep("C",names(as.data.frame(mm4.RPF.length.prop)))],1,sd)/2->C.se
+as.data.frame(cbind(mm4.RPF.length$length,C.mean,C.se))->C.data
+names(C.data)<-c("length","proportion","se")
+C.data$species<-rep("chimp",21)
+
+# compute rhesus
+
+apply(mm4.RPF.length.prop[,grep("R",names(as.data.frame(mm4.RPF.length.prop)))],1,mean)->R.mean
+apply(mm4.RPF.length.prop[,grep("R",names(as.data.frame(mm4.RPF.length.prop)))],1,sd)/2->R.se
+as.data.frame(cbind(mm4.RPF.length$length,R.mean,R.se))->R.data
+names(R.data)<-c("length","proportion","se")
+R.data$species<-rep("rhesus",21)
+
+length.data<-rbind(H.data,C.data,R.data)
+
+
+# ggplot to visualize length distribution by species. Use scale_fill_manual to change default color to the color of choice by manually mapping the species name to color name. Use element_blank() to remove title for each subplot (strip)
+
+F1S2 <- ggplot(length.data,aes(x=length,y=proportion, fill=species))+geom_bar(stat="identity")+geom_errorbar(aes(ymin=proportion-se, ymax=proportion+se), width=.3)+facet_grid(species ~ .)+scale_fill_manual(values = c("human"="black","chimp"="sky blue","rhesus"="dark orange"))+ggtitle(label="RPF length distribution")+theme(strip.background = element_blank(), strip.text = element_blank())+xlab("length(nt)")
+
+F1S2
+######
+#save figure F1S2 as pdf
+#pdf("../figures/Fig1S2.pdf", width = 4, height = 4)
+#F1S2
+#dev.off()
+
+######
+
+
+```
+
+codon periodicity
+```{r}
+load("../rdas/mm4.aggCount.phastCon9.start.RData")
+mm4.start.agg.010716[is.na(mm4.start.agg.010716)]<-0
+
+# ggplot bar
+HCRmm4.start.prop<-prop.table(as.matrix(mm4.start.agg.010716[,-1]),2)
+#center the plot by subtract out 50 (RP label start from 10 to 89) and then shift to the actual start by subtract out 12 (distance from 5' to center)
+relative.position<-mm4.start.agg.010716$RP-50+12
+#compute human mean
+apply(HCRmm4.start.prop[,grep("H",names(as.data.frame(HCRmm4.start.prop)))],1,mean)->H.mean
+apply(HCRmm4.start.prop[,grep("H",names(as.data.frame(HCRmm4.start.prop)))],1,sd)/2->H.se
+as.data.frame(cbind(relative.position,H.mean,H.se))->H.data
+names(H.data)<-c("position","proportion","se")
+H.data$species<-rep("human",80)
+
+# compute chimp mean
+apply(HCRmm4.start.prop[,grep("C",names(as.data.frame(HCRmm4.start.prop)))],1,mean)->C.mean
+apply(HCRmm4.start.prop[,grep("C",names(as.data.frame(HCRmm4.start.prop)))],1,sd)/2->C.se
+as.data.frame(cbind(relative.position,C.mean,C.se))->C.data
+names(C.data)<-c("position","proportion","se")
+C.data$species<-rep("chimp",80)
+
+# compute rhesus
+
+apply(HCRmm4.start.prop[,grep("R",names(as.data.frame(HCRmm4.start.prop)))],1,mean)->R.mean
+apply(HCRmm4.start.prop[,grep("R",names(as.data.frame(HCRmm4.start.prop)))],1,sd)/2->R.se
+as.data.frame(cbind(relative.position,R.mean,R.se))->R.data
+names(R.data)<-c("position","proportion","se")
+R.data$species<-rep("rhesus",80)
+
+periodicity.data<-rbind(H.data,C.data,R.data)
+
+
+# ggplot to visualize periodicity distribution by species. Use scale_fill_manual to change default color to the color of choice by manually mapping the species name to color name. Use element_blank() to remove title for each subplot (strip)
+
+F1a <- ggplot(periodicity.data,aes(x=position,y=proportion, fill=species))+geom_bar(stat="identity")+geom_errorbar(aes(ymin=proportion-se, ymax=proportion+se), width=.3)+facet_grid(species ~ .)+scale_fill_manual(values = c("human"="black","chimp"="sky blue","rhesus"="dark orange"))+ggtitle(label="RPF codon periodicity")+theme(strip.background = element_blank(), strip.text = element_blank())+xlab("position(bp)")
+
+
+F1a
+######
+#save figure F1a as pdf
+#pdf("../figures/Fig1a.pdf", width = 5, height = 4)
+#F1a
+#dev.off()
+
+######
+
+```
+
+correlation between technical replications (seqeuencing runs)  vs. biological replications (individuals)
+```{r}
+
+load("../rdas/mm4.ribo.countByLane.RData")
+
+#between lane (within individual) correlations
+idlist<-names(mm4.RPF.length.010716[,-1])
+mm4.cor.between.lane<-list()
+for (i in 1:length(idlist)){
+s.index<-grep(idlist[i],names(mm4.countByLane.010716))
+mm4.corBylane<-cor(mm4.countByLane.010716[,s.index],method = "spearman")
+below<-col(mm4.corBylane)<row(mm4.corBylane) | col(mm4.corBylane)==row(mm4.corBylane)
+mm4.corBylane<-as.vector(mm4.corBylane[!below])
+mm4.cor.between.lane[[i]]<-mm4.corBylane
+}
+summary(unlist(mm4.cor.between.lane))
+
+# between individual (data from the same lane) correlation
+
+# since the actual lane IDs are not retained in the column names, to grep the lane IDs to compute correlatoins between individuals in each lane doesn't seem meaningful enough to justify the amount of trouble that I will have to go through to code this. Should probably go back to double check to make sure that results from the previous analysis are correct and go with it, where I coded by position in the matrix to get data from each lane.
+
+# perhaps the best way to double check is to repeat the analysis where I coded lanes by position in the matrix to see if I get the same results.
+
+
+spec.label<-c("H","C","R")
+mm4.cor.between.ind<-list()
+for (s in 1:3){
+mm4.countByLane.S<-mm4.countByLane.010716[,grep(spec.label[s],names(mm4.countByLane.010716))]
+mm4.cor.between.ind.S<-list()
+for (i in 1:22){
+mm4.corByind.S<-cor(mm4.countByLane.S[,c(i,i+22,i+44,i+66)], method ="spearman")
+below<-col(mm4.corByind.S)<row(mm4.corByind.S) | col(mm4.corByind.S)==row(mm4.corByind.S)
+mm4.corByind.S<-as.vector(mm4.corByind.S[!below])
+mm4.cor.between.ind.S[[i]]<-mm4.corByind.S
+}
+mm4.cor.between.ind[[s]]<-unlist(mm4.cor.between.ind.S)
+}
+
+summary(unlist(mm4.cor.between.ind))
+
+
+#boxplot
+boxplot(unlist(mm4.cor.between.ind),unlist(mm4.cor.between.lane), notch = T, ylim=c(0.84,0.98), main="biological vs. technical variation")
+axis(1,c(1,2),c(paste0("bio (N=",length(unlist(mm4.cor.between.ind)),")"),paste0("tech (N=",length(unlist(mm4.cor.between.lane)),")")))
+
+#get p values, null hypothesis: two sets of correlations are drawn from the same distribution
+#add p value to the boxplot 
+legend(c("bottomright"),paste0("p ",format.pval(wilcox.test(unlist(mm4.cor.between.ind),unlist(mm4.cor.between.lane))$p.value,4)), bty="n")
+
+
+ks.test(unlist(mm4.cor.between.ind),unlist(mm4.cor.between.lane))
+
+# chance of obervaing median correlation between individuals sequenced in the same lane from a random draw from correlations between different lanes of data generated from the same individual
+
+1/length(which(unlist(mm4.cor.between.lane)>median(unlist(mm4.cor.between.ind))))
+
+
+
+# Only genes included in ribo DE analysis
+
+# only keep genes that have at least one read from half of all smaples
+load("../rdas/mm4.ribo.RData")
+filter<-c() 
+for (i in 1:length(mm4.010716[,1])){
+filter[i]<-sum(mm4.010716[i,] == 0) < 7
+}
+
+mm4.cor.between.lane<-list()
+for (i in 1:length(idlist)){
+  s.index<-grep(idlist[i],names(mm4.countByLane.010716))
+  mm4.corBylane<-cor(mm4.countByLane.010716[filter,s.index],method = "spearman")
+  below<-col(mm4.corBylane)<row(mm4.corBylane) | col(mm4.corBylane)==row(mm4.corBylane)
+  mm4.corBylane<-as.vector(mm4.corBylane[!below])
+  mm4.cor.between.lane[[i]]<-mm4.corBylane
+}
+summary(unlist(mm4.cor.between.lane))
+
+spec.label<-c("H","C","R")
+mm4.cor.between.ind<-list()
+for (s in 1:3){
+  mm4.countByLane.S<-mm4.countByLane.010716[filter,grep(spec.label[s],names(mm4.countByLane.010716))]
+  mm4.cor.between.ind.S<-list()
+  for (i in 1:22){
+    mm4.corByind.S<-cor(mm4.countByLane.S[,c(i,i+22,i+44,i+66)], method ="spearman")
+    below<-col(mm4.corByind.S)<row(mm4.corByind.S) | col(mm4.corByind.S)==row(mm4.corByind.S)
+    mm4.corByind.S<-as.vector(mm4.corByind.S[!below])
+    mm4.cor.between.ind.S[[i]]<-mm4.corByind.S
+  }
+  mm4.cor.between.ind[[s]]<-unlist(mm4.cor.between.ind.S)
+}
+
+summary(unlist(mm4.cor.between.ind))
+
+#boxplot
+boxplot(unlist(mm4.cor.between.ind),unlist(mm4.cor.between.lane), notch = T, ylim=c(0.84,0.98), ylab= "Spearman's rho", outline=F, main="biological vs. technical variation")
+axis(1,c(1,2),c(paste0("bio (N=",length(unlist(mm4.cor.between.ind)),")"),paste0("tech (N=",length(unlist(mm4.cor.between.lane)),")")))
+
+#get p values, null hypothesis: two sets of correlations are drawn from the same distribution
+#add p value to the boxplot 
+legend(c("bottomright"),paste0("p ",format.pval(wilcox.test(unlist(mm4.cor.between.ind),unlist(mm4.cor.between.lane))$p.value,4)), bty="n")
+
+ks.test(unlist(mm4.cor.between.ind),unlist(mm4.cor.between.lane))
+
+# chance of obervaing median correlation between individuals sequenced in the same lane from a random draw from correlations between different lanes of data generated from the same individual
+
+1/length(which(unlist(mm4.cor.between.lane)>median(unlist(mm4.cor.between.ind))))
+
+
+median.correlation.betweenLane<-boxplot(mm4.cor.between.lane, xaxt="n",plot=F)$stats[3,]
+seq.depth<-as.numeric(mm4.seqStat.010716[1,match(idlist,names(mm4.seqStat.010716))])
+plot(seq.depth,median.correlation.betweenLane, xlab = "sequencing depth", ylab = "correlation between lanes",main="coverage drives technical correlation")
+abline(lm(median.correlation.betweenLane~seq.depth), col="red")
+legend("bottomright",paste("R^2=",round(summary(lm(median.correlation.betweenLane~seq.depth))$r.squared,2)), bty="n")
+
+######
+#save figure F1S3 as pdf
+#pdf("../figures/Fig1S3.pdf", width = 4, height = 4)
+
+#boxplot(unlist(mm4.cor.between.ind),unlist(mm4.cor.between.lane), notch = T, ylim=c(0.84,0.98), ylab= "Spearman's rho", outline=F, main="biological vs. technical variation")
+#axis(1,c(1,2),c(paste0("bio (N=",length(unlist(mm4.cor.between.ind)),")"),paste0("tech (N=",length(unlist(mm4.cor.between.lane)),")")))
+
+#legend(c("bottomright"),paste0("p ",format.pval(wilcox.test(unlist(mm4.cor.between.ind),unlist(mm4.cor.between.lane))$p.value,4)), bty="n")
+
+#dev.off()
+
+######
+
+```
+
+
+correlatoin between principal components and potential technical/ biological covariates
+```{r}
+
+load("../rdas/mm4.ribo.RData")
+load("../rdas/HCR.ortho.geneLength.rda")
+
+# compute RPKM
+mm4.ribo.rpkm <- prop.table(as.matrix(mm4.010716[,-1]),2)*10^9
+mm4.ribo.rpkm<-cbind(mm4.ribo.rpkm[,1:4]/HCR.geneLength$Chimp, mm4.ribo.rpkm[,5:8]/HCR.geneLength$Rhesus, mm4.ribo.rpkm[,9:12]/HCR.geneLength$Human)
+
+# filter out lowly expressed
+rpkm.filter<-c() 
+for (i in 1:length(mm4.ribo.rpkm[,1])){
+rpkm.filter[i]<-sum(mm4.ribo.rpkm[i,] == 0) < 7
+}
+
+mm4.ribo.rpkm<-mm4.ribo.rpkm[rpkm.filter,]
+
+# normailization
+library(limma)
+mm4.ribo.rpkm.Q<-normalizeQuantiles(mm4.ribo.rpkm,ties = T)
+
+
+is.na(mm4.ribo.rpkm.Q)<-which(mm4.ribo.rpkm.Q == 0)
+log2.mm4.ribo.rpkm.Q<-log2(mm4.ribo.rpkm.Q)
+
+#PCA
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+pc<-prcomp(t(na.omit(log2.mm4.ribo.rpkm.Q)),center = T,scale = T)
+barplot((pc$sdev)^2/sum((pc$sdev)^2), names.arg =  colnames(pc$x))
+
+mm4.spec<-substring(rownames(pc$x),1,1)
+mm4.spec<-c(mm4.spec[1:8],rep("H",4))
+temp.data<-as.data.frame(cbind(melt(pc$x),pc$x[,1],mm4.spec))
+
+names(temp.data)<-c("ID","PC","value","pc1","species")
+
+temp.data %>% filter(as.numeric(temp.data$PC) < 10) %>% ggplot(aes(x=pc1,y=value))+geom_point(aes(color = species))+facet_wrap(~PC)+labs(y="pcX")
+
+
+#temp.data %>% filter(as.numeric(temp.data$PC) < 3 & as.numeric(temp.data$PC) >1) %>% ggplot(aes(x=pc1,y=value))+geom_point(aes(color = species))+facet_wrap(~PC)+labs(y="pc2")
+
+
+
+# PC correlation with potential confounders
+
+load("../rdas/HCR.batchA.plus1.ribo.cova.RData")
+
+mm4.cova<-subset(HCR.batchA.plus1.cova, libmix=="mm4")
+
+#############################
+## write mm4 cova out as supplemental table 1
+#tableS1 <- mm4.cova[,c(1:4)]
+
+#names(tableS1)[2] <- "mapped count"
+#tableS1$species <- sub("C","chimpanzee",tableS1$species)
+#tableS1$species <- sub("R","rhesus macaque",tableS1$species)
+#tableS1$species <- sub("H","human",tableS1$species)
+
+#write.csv(tableS1,"../../tables/tableS1.csv",quote = FALSE,row.names = F)
+#########################
+
+
+#lm to find significant correlation with technical variables
+
+species<-c()
+for (i in 1:12){
+  species[i]<-anova(lm(pc$x[,i]~as.factor(mm4.cova$species)))$"Pr(>F)"[1]
+}
+
+
+sex<-c()
+for (i in 1:12){
+  sex[i]<-anova(lm(pc$x[,i]~mm4.cova$sex))$"Pr(>F)"[1]
+}
+
+totalCount<-c()
+for (i in 1:12){
+  totalCount[i]<-anova(lm(pc$x[,i]~mm4.cova$totalCount))$"Pr(>F)"[1]
+}
+
+seqQual<-c()
+for (i in 1:12){
+  seqQual[i]<-anova(lm(pc$x[,i]~mm4.cova$"proportion>Q30"))$"Pr(>F)"[1]
+}
+
+periodicity<-c()
+for (i in 1:12){
+  periodicity[i]<-anova(lm(pc$x[,i]~mm4.cova$periodicity))$"Pr(>F)"[1]
+}
+
+
+PC.cova.pvalue<-cbind(species, sex, totalCount, seqQual,periodicity)
+
+
+#print table
+PC.cova.pvalue
+
+my_palette <- colorRampPalette(c("royalblue", "white", "orange"))(n = 99)
+#make heatmap of p-value to visualize correlation
+library("gplots")
+heatmap.2(-log10(PC.cova.pvalue),Rowv=NA, Colv=NA,dendrogram="none", scale="none", trace="none", density.info="none",margins=c(10,5), col=my_palette)
+
+######
+#save figure F1S4 as pdf
+# I end up had to add some text to this plot using adobe acrobat 
+# so I commented out the following lines to avoid accidentally 
+# overwrite the edited plot
+
+#pdf("../../figures/Fig1S4.pdf", width = 6, height = 6)
+#heatmap.2(-log10(PC.cova.pvalue),Rowv=NA, Colv=NA,dendrogram="none", scale="none", trace="none", density.info="none",margins=c(10,5), col=my_palette, keysize = 1.3, key.xlab = "-log10(p value)")
+#dev.off()
+
+######
+
+
+
+
+```
+

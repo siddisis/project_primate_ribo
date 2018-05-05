@@ -1,0 +1,18 @@
+{
+    "contents" : "apply(mm4.RPF.length.prop[,grep(\"R\",names(as.data.frame(mm4.RPF.length.prop)))],1,mean)->R.mean\napply(mm4.RPF.length.prop[,grep(\"R\",names(as.data.frame(mm4.RPF.length.prop)))],1,sd)/2->R.se\nas.data.frame(cbind(mm4.RPF.length$length,R.mean,R.se))->R.data\nnames(R.data)<-c(\"length\",\"proportion\",\"se\")\nR.data$species<-rep(\"rhesus\",21)",
+    "created" : 1445661600154.000,
+    "dirty" : true,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "3448222570",
+    "id" : "D965EDB",
+    "lastKnownWriteTime" : 4755503680,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "tempName" : "Untitled7"
+    },
+    "relative_order" : 5,
+    "source_on_save" : false,
+    "type" : "r_source"
+}

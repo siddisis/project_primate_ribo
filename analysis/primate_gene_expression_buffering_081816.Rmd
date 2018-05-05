@@ -1,0 +1,1952 @@
+---
+title: "primate gene expression buffering"
+author: "Sidney Wang"
+date: "August 18, 2016"
+output: html_document
+---
+
+load data
+```{r}
+load("../tables/fileS4.RData")
+
+load("../rdas/HCR.protein.TMM.RData")
+
+
+expressed.gene.names <- as.character(HCR.protein.TMM.norm.ESNGlabeled[rownames(HCR.protein.TMM.norm.ESNGlabeled) %in% rownames(protein.expressed.data),16])
+names(expressed.gene.names) <- rownames(protein.expressed.data)
+
+```
+
+
+
+phenotype specific divergence (i.e. buffering at the downstream phenotype)
+regress out effects from downstream phenotype (pairwise comparison)
+
+```{r}
+library(limma)
+library(qvalue)
+
+# test for translation buffering
+
+# HvC 
+RNA.expressed.data.HC<-RNA.expressed.data[,1:10]
+ribo.expressed.data.HC<-ribo.expressed.data[,1:10]
+
+RNA.expressed.weights.HC <- RNA.expressed.weights[,1:10]
+
+# for each gene fit RNA with ribo data and take residue 
+
+RNA.specific.data <- matrix(nrow = length(RNA.expressed.data.HC[,1]),ncol = 10)
+
+colnames(RNA.specific.data) <- colnames(RNA.expressed.data.HC)
+rownames(RNA.specific.data) <- rownames(RNA.expressed.data.HC)
+
+  
+for (i in 1:length(RNA.expressed.data.HC[,1])){ 
+  ribo.fit<-lm(unlist(RNA.expressed.data.HC[i,]) ~ unlist(ribo.expressed.data.HC[i,]),weights = RNA.expressed.weights.HC[i,])
+  RNA.specific.data[i,] <- ribo.fit$residuals
+  }
+
+
+
+species.label <- substring(colnames(RNA.expressed.data.HC),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Human")
+
+# fit residual RNA effect with a species fix effect model and include voom weights calculated from RNA seq data
+
+HvC.RNA.specific.fit <- lmFit(RNA.specific.data ,design = design,weights = RNA.expressed.weights.HC)
+
+# use eBayes to further adjust variance and compute DE test statistics
+HvC.RNA.specific.fit <- eBayes(HvC.RNA.specific.fit)
+
+HvC.translation.buffering.pval <- HvC.RNA.specific.fit$p.value[,2]
+
+
+# test for post-translation (protein) buffering
+
+# HvC 
+protein.expressed.data.HC<-protein.expressed.data[,1:10]
+ribo.expressed.data.HC<-ribo.expressed.data[,1:10]
+
+ribo.expressed.weights.HC <- ribo.expressed.weights[,1:10]
+
+# for each gene fit ribo with protein data and take residue 
+
+ribo.specific.data <- matrix(nrow = length(ribo.expressed.data.HC[,1]),ncol = 10)
+
+colnames(ribo.specific.data) <- colnames(ribo.expressed.data.HC)
+rownames(ribo.specific.data) <- rownames(ribo.expressed.data.HC)
+
+
+for (i in 1:length(ribo.expressed.data.HC[,1])){ 
+  protein.fit<-lm(unlist(ribo.expressed.data.HC[i,]) ~ unlist(protein.expressed.data.HC[i,]), na.action = "na.exclude",weights = ribo.expressed.weights.HC[i,])
+  
+  ribo.specific.data[i,] <- protein.fit$residuals[match(colnames(ribo.specific.data), names(protein.fit$residuals))]
+}
+
+
+
+species.label <- substring(colnames(ribo.expressed.data.HC),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Human")
+
+# fit residual ribo effect with a species fix effect model and include voom weights calculated from ribo seq data
+
+HvC.ribo.specific.fit <- lmFit(ribo.specific.data ,design = design,weights = ribo.expressed.weights.HC)
+
+# use eBayes to further adjust variance and compute DE test statistics
+HvC.ribo.specific.fit <- eBayes(HvC.ribo.specific.fit)
+
+HvC.protein.buffering.pval <- HvC.ribo.specific.fit$p.value[,2]
+
+
+```
+
+
+RvC
+```{r}
+# test for translation buffering
+
+# RvC 
+RNA.expressed.data.RC<-RNA.expressed.data[,c(1:5,11:15)]
+ribo.expressed.data.RC<-ribo.expressed.data[,c(1:5,11:15)]
+
+RNA.expressed.weights.RC <- RNA.expressed.weights[,c(1:5,11:15)]
+
+# for each gene fit RNA with ribo data and take residue 
+
+RNA.specific.data <- matrix(nrow = length(RNA.expressed.data.RC[,1]),ncol = 10)
+
+colnames(RNA.specific.data) <- colnames(RNA.expressed.data.RC)
+rownames(RNA.specific.data) <- rownames(RNA.expressed.data.RC)
+
+
+
+for (i in 1:length(RNA.expressed.data.RC[,1])){ 
+  ribo.fit<-lm(unlist(RNA.expressed.data.RC[i,]) ~ unlist(ribo.expressed.data.RC[i,]),weights = RNA.expressed.weights.RC[i,])
+  RNA.specific.data[i,] <- ribo.fit$residuals
+}
+
+
+
+species.label <- substring(colnames(RNA.expressed.data.RC),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Rhesus")
+
+# fit residual RNA effect with a species fix effect model and include voom weights calculated from RNA seq data
+
+RvC.RNA.specific.fit <- lmFit(RNA.specific.data ,design = design,weights = RNA.expressed.weights.RC)
+
+# use eBayes to further adjust variance and compute DE test statistics
+RvC.RNA.specific.fit <- eBayes(RvC.RNA.specific.fit)
+
+RvC.translation.buffering.pval <- RvC.RNA.specific.fit$p.value[,2]
+
+
+# test for post-translation (protein) buffering
+
+# RvC 
+protein.expressed.data.RC<-protein.expressed.data[,c(1:5,11:15)]
+ribo.expressed.data.RC<-ribo.expressed.data[,c(1:5,11:15)]
+
+ribo.expressed.weights.RC <- ribo.expressed.weights[,c(1:5,11:15)]
+
+# for each gene fit ribo with protein data and take residue 
+
+ribo.specific.data <- matrix(nrow = length(ribo.expressed.data.RC[,1]),ncol = 10)
+
+colnames(ribo.specific.data) <- colnames(ribo.expressed.data.RC)
+rownames(ribo.specific.data) <- rownames(ribo.expressed.data.RC)
+
+
+for (i in 1:length(ribo.expressed.data.RC[,1])){ 
+  protein.fit<-lm(unlist(ribo.expressed.data.RC[i,]) ~ unlist(protein.expressed.data.RC[i,]), na.action = "na.exclude",weights = ribo.expressed.weights.RC[i,])
+  
+  ribo.specific.data[i,] <- protein.fit$residuals[match(colnames(ribo.specific.data), names(protein.fit$residuals))]
+}
+
+
+
+species.label <- substring(colnames(ribo.expressed.data.RC),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Rhesus")
+
+# fit residual ribo effect with a species fix effect model and include voom weights calculated from ribo seq data
+
+RvC.ribo.specific.fit <- lmFit(ribo.specific.data ,design = design,weights = ribo.expressed.weights.RC)
+
+# use eBayes to further adjust variance and compute DE test statistics
+RvC.ribo.specific.fit <- eBayes(RvC.ribo.specific.fit)
+
+RvC.protein.buffering.pval <- RvC.ribo.specific.fit$p.value[,2]
+
+```
+
+RvH
+```{r}
+# test for translation buffering
+
+# RvH 
+RNA.expressed.data.RH<-RNA.expressed.data[,6:15]
+ribo.expressed.data.RH<-ribo.expressed.data[,6:15]
+
+RNA.expressed.weights.RH <- RNA.expressed.weights[,6:15]
+
+# for each gene fit RNA with ribo data and take residue 
+
+RNA.specific.data <- matrix(nrow = length(RNA.expressed.data.RH[,1]),ncol = 10)
+
+colnames(RNA.specific.data) <- colnames(RNA.expressed.data.RH)
+rownames(RNA.specific.data) <- rownames(RNA.expressed.data.RH)
+
+
+for (i in 1:length(RNA.expressed.data.RH[,1])){ 
+  ribo.fit<-lm(unlist(RNA.expressed.data.RH[i,]) ~ unlist(ribo.expressed.data.RH[i,]),weights = RNA.expressed.weights.RH[i,])
+  RNA.specific.data[i,] <- ribo.fit$residuals
+}
+
+
+
+species.label <- substring(colnames(RNA.expressed.data.RH),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Rhesus")
+
+# fit residual RNA effect with a species fix effect model and include voom weights calculated from RNA seq data
+
+RvH.RNA.specific.fit <- lmFit(RNA.specific.data ,design = design,weights = RNA.expressed.weights.RH)
+
+# use eBayes to further adjust variance and compute DE test statistics
+RvH.RNA.specific.fit <- eBayes(RvH.RNA.specific.fit)
+
+RvH.translation.buffering.pval <- RvH.RNA.specific.fit$p.value[,2]
+
+
+# test for post-translation (protein) buffering
+
+# RvH 
+protein.expressed.data.RH<-protein.expressed.data[,6:15]
+ribo.expressed.data.RH<-ribo.expressed.data[,6:15]
+
+ribo.expressed.weights.RH <- ribo.expressed.weights[,6:15]
+
+# for each gene fit ribo with protein data and take residue 
+
+ribo.specific.data <- matrix(nrow = length(ribo.expressed.data.RH[,1]),ncol = 10)
+
+colnames(ribo.specific.data) <- colnames(ribo.expressed.data.RH)
+rownames(ribo.specific.data) <- rownames(ribo.expressed.data.RH)
+
+
+for (i in 1:length(ribo.expressed.data.RH[,1])){ 
+  protein.fit<-lm(unlist(ribo.expressed.data.RH[i,]) ~ unlist(protein.expressed.data.RH[i,]), na.action = "na.exclude",weights = ribo.expressed.weights.RH[i,])
+  
+  ribo.specific.data[i,] <- protein.fit$residuals[match(colnames(ribo.specific.data), names(protein.fit$residuals))]
+}
+
+
+
+species.label <- substring(colnames(ribo.expressed.data.RH),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Rhesus")
+
+# fit residual ribo effect with a species fix effect model and include voom weights calculated from ribo seq data
+
+RvH.ribo.specific.fit <- lmFit(ribo.specific.data ,design = design,weights = ribo.expressed.weights.RH)
+
+# use eBayes to further adjust variance and compute DE test statistics
+RvH.ribo.specific.fit <- eBayes(RvH.ribo.specific.fit)
+
+RvH.protein.buffering.pval <- RvH.ribo.specific.fit$p.value[,2]
+
+######
+#save translational buffering results to file S6
+
+buffer.results <- cbind(HvC.RNA.specific.fit$coefficients[,2], RvC.RNA.specific.fit$coefficients[,2], RvH.RNA.specific.fit$coefficients[,2], HvC.translation.buffering.pval, RvC.translation.buffering.pval, RvH.translation.buffering.pval, qvalue(HvC.translation.buffering.pval)$qvalues, qvalue(RvC.translation.buffering.pval)$qvalues, qvalue(RvH.translation.buffering.pval)$qvalues, p.adjust(HvC.translation.buffering.pval,method = "bonferroni"), p.adjust(RvC.translation.buffering.pval,method = "bonferroni"), p.adjust(RvH.translation.buffering.pval,method = "bonferroni"))
+
+colnames(buffer.results) <- c("HvC.beta","RvC.beta","HvR.beta","HvC.pval","RvC.pval","HvR.pval","HvC.FDR","RvC.FDR","HvR.FDR","HvC.FWER","RvC.FWER","HvR.FWER")
+
+#write.csv(buffer.results,"../../tables/FileS6.csv",quote = FALSE,row.names = TRUE)
+
+######
+
+######
+#save post-translational buffering results to file S7
+buffer.results <- cbind(HvC.ribo.specific.fit$coefficients[,2], RvC.ribo.specific.fit$coefficients[,2], RvH.ribo.specific.fit$coefficients[,2], HvC.protein.buffering.pval, RvC.protein.buffering.pval, RvH.protein.buffering.pval, qvalue(HvC.protein.buffering.pval)$qvalues, qvalue(RvC.protein.buffering.pval)$qvalues, qvalue(RvH.protein.buffering.pval)$qvalues, p.adjust(HvC.protein.buffering.pval,method = "bonferroni"), p.adjust(RvC.protein.buffering.pval,method = "bonferroni"), p.adjust(RvH.protein.buffering.pval,method = "bonferroni"))
+
+colnames(buffer.results) <- c("HvC.beta","RvC.beta","HvR.beta","HvC.pval","RvC.pval","HvR.pval","HvC.FDR","RvC.FDR","HvR.FDR","HvC.FWER","RvC.FWER","HvR.FWER")
+
+#write.csv(buffer.results,"../../tables/FileS7.csv",quote = FALSE,row.names = TRUE)
+
+######
+
+
+```
+
+
+estimate gene expression divergecen between specise for each phenotype (for plots)
+```{r}
+# RNA
+
+species.label <- substring(colnames(RNA.expressed.data),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Human","Rhesus")
+
+
+RNA.voom.fit <- lmFit(RNA.expressed.data,design = design,weights = RNA.expressed.weights)
+RH.contrast <- makeContrasts(Rhesus-Human,levels = design)
+RNA.voom.RH.fit <- contrasts.fit(RNA.voom.fit,RH.contrast)
+
+RNA.voom.fit <- eBayes(RNA.voom.fit)
+RNA.voom.RH.fit <- eBayes(RNA.voom.RH.fit)
+
+
+
+HvC.RNA.effect<-RNA.voom.fit$coefficient[,2]
+RvC.RNA.effect<-RNA.voom.fit$coefficient[,3]
+RvH.RNA.effect <- RNA.voom.RH.fit$coefficient[,1]
+
+# ribo
+
+species.label <- substring(colnames(ribo.expressed.data),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Human","Rhesus")
+
+
+ribo.voom.fit <- lmFit(ribo.expressed.data,design = design,weights = ribo.expressed.weights)
+RH.contrast <- makeContrasts(Rhesus-Human,levels = design)
+ribo.voom.RH.fit <- contrasts.fit(ribo.voom.fit,RH.contrast)
+
+ribo.voom.fit <- eBayes(ribo.voom.fit)
+ribo.voom.RH.fit <- eBayes(ribo.voom.RH.fit)
+
+
+
+HvC.ribo.effect<-ribo.voom.fit$coefficient[,2]
+RvC.ribo.effect<-ribo.voom.fit$coefficient[,3]
+RvH.ribo.effect <- ribo.voom.RH.fit$coefficient[,1]
+
+# protein
+
+species.label <- substring(colnames(protein.expressed.data),1,1)
+
+design <- model.matrix(~species.label)
+colnames(design)<-c("Int","Human","Rhesus")
+
+
+protein.fit <- lmFit(protein.expressed.data,design = design)
+RH.contrast <- makeContrasts(Rhesus-Human,levels = design)
+protein.RH.fit <- contrasts.fit(protein.fit,RH.contrast)
+
+protein.fit <- eBayes(protein.fit)
+protein.RH.fit <- eBayes(protein.RH.fit)
+
+
+
+HvC.protein.effect<-protein.fit$coefficient[,2]
+RvC.protein.effect<-protein.fit$coefficient[,3]
+RvH.protein.effect <- protein.RH.fit$coefficient[,1]
+
+
+
+```
+
+scatter plots for visualize results
+```{r}
+library(ggplot2)
+
+# human vs chimp translation buffering plot 
+
+HvC.FWER<-p.adjust(HvC.translation.buffering.pval,method = "bonferroni")
+
+length(which(HvC.FWER < 0.05))
+
+HvC.qval<- qvalue(HvC.translation.buffering.pval)$qvalues
+
+length(which(HvC.qval < 0.01))
+
+# color by FWER value < 0.05
+point.color <- cut(HvC.FWER,breaks = c (0,0.05,1), labels = c("blue","grey50"))
+
+#point.color <- cut(HvC.qval,breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+
+F3a <- ggplot(mapping = aes(x=HvC.RNA.effect,y=HvC.ribo.effect))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(human/chimpanzee) RNA")+ylab("log2(human/chimpanzee) RPF")+ggtitle("Translational buffering")+scale_x_continuous(limits = c(-10, 10))+scale_y_continuous(limits = c(-10, 10))+theme_bw()+geom_abline(slope = 1, intercept = 0)+geom_point(aes(x= HvC.RNA.effect[HvC.FWER<0.05],y= HvC.ribo.effect[HvC.FWER<0.05]), col="blue", alpha=0.5)
+F3a
+######
+#Fig3a
+#pdf("../../figures/Fig3a.pdf", width = 4, height = 4)
+#F3a
+#dev.off()
+
+######
+
+# human vs chimp protein buffering plot 
+
+HvC.FWER<-p.adjust(HvC.protein.buffering.pval,method = "bonferroni")
+
+length(which(HvC.FWER < 0.05))
+
+HvC.qval<- qvalue(HvC.protein.buffering.pval)$qvalues
+
+length(which(HvC.qval < 0.01))
+
+
+# color by FWER value < 0.05
+point.color <- cut(HvC.FWER,breaks = c (0,0.05,1), labels = c("blue","grey50"))
+
+#point.color <- cut(HvC.qval,breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+
+F3b <- ggplot(mapping = aes(x=HvC.ribo.effect,y=HvC.protein.effect))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(human/chimpanzee) RPF")+ylab("log2(human/chimpanzee) protein")+ggtitle("Post-translational buffering")+scale_x_continuous(limits = c(-10, 10))+scale_y_continuous(limits = c(-10, 10))+theme_bw()+geom_abline(slope = 1, intercept = 0)
+
+F3b
+######
+#Fig3b
+#pdf("../../figures/Fig3b.pdf", width = 4, height = 4)
+#F3b
+#dev.off()
+
+######
+
+
+
+# p value qqplot
+
+HvC.translation.buffering.sorted.logP<--log10(sort(HvC.translation.buffering.pval))
+
+HvC.protein.buffering.sorted.logP<--log10(sort(HvC.protein.buffering.pval))
+
+
+
+expected <- c(1:length(HvC.protein.buffering.sorted.logP)) 
+log.exp <- -(log10(expected / (length(expected)+1)))
+
+
+plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 Pvalue)", ylab="Observed (-log10 Pvalue)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="human vs chimpanzee gene expression buffering")
+points(log.exp, HvC.translation.buffering.sorted.logP, pch=18, cex=.6, col="orange") 
+points(log.exp, HvC.protein.buffering.sorted.logP, pch=18, cex=.6, col="blue") 
+legend("topleft",c("translational","post-translational"),col = c("orange","blue"),pch=18,cex=.6, bty="n", horiz=TRUE)
+
+######
+#Fig3c
+#pdf("../../figures/Fig3c.pdf", width = 4, height = 4)
+#plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 p-value)", ylab="Observed (-log10 p-value)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="Gene expression buffering")
+#points(log.exp, HvC.translation.buffering.sorted.logP, pch=18, cex=.6, col="orange") 
+#points(log.exp, HvC.protein.buffering.sorted.logP, pch=18, cex=.6, col="blue") 
+#legend("topleft",c("translational","post-translational"),col = c("orange","blue"),pch=18,cex=.75, bty="n", horiz=TRUE)
+#dev.off()
+
+######
+
+```
+
+scatter plots for visualize results RvC (supplement)
+```{r}
+library(ggplot2)
+
+# rhesus vs chimp translation buffering plot 
+
+RvC.FWER<-p.adjust(RvC.translation.buffering.pval,method = "bonferroni")
+
+length(which(RvC.FWER < 0.05))
+
+RvC.qval<- qvalue(RvC.translation.buffering.pval)$qvalues
+
+length(which(RvC.qval < 0.01))
+
+# color by FWER value < 0.05
+point.color <- cut(RvC.FWER,breaks = c (0,0.05,1), labels = c("blue","grey50"))
+
+#point.color <- cut(RvC.qval,breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+
+F3S1a <- ggplot(mapping = aes(x=RvC.RNA.effect,y=RvC.ribo.effect))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(rhesus/chimpanzee) RNA")+ylab("log2(rhesus/chimpanzee) RPF")+ggtitle("RvC: Translational buffering")+scale_x_continuous(limits = c(-10, 10))+scale_y_continuous(limits = c(-10, 10))+theme_bw()+geom_abline(slope = 1, intercept = 0)
+
+F3S1a
+######
+#Fig3_S1a
+#pdf("../../figures/Fig3S1a.pdf", width = 4, height = 4)
+#F3S1a
+#dev.off()
+
+######
+
+
+# rhesus vs chimp protein buffering plot 
+
+RvC.FWER<-p.adjust(RvC.protein.buffering.pval,method = "bonferroni")
+
+length(which(RvC.FWER < 0.05))
+
+RvC.qval<- qvalue(RvC.protein.buffering.pval)$qvalues
+
+length(which(RvC.qval < 0.01))
+
+
+# color by FWER value < 0.01
+point.color <- cut(RvC.FWER,breaks = c (0,0.05,1), labels = c("blue","grey50"))
+
+#point.color <- cut(RvC.qval,breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+
+F3S1b <- ggplot(mapping = aes(x=RvC.ribo.effect,y=RvC.protein.effect))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(rhesus/chimpanzee) RPF")+ylab("log2(rhesus/chimpanzee) protein")+ggtitle("RvC: post-translational buffering")+scale_x_continuous(limits = c(-10, 10))+scale_y_continuous(limits = c(-10, 10))+theme_bw()+geom_abline(slope = 1, intercept = 0)
+
+
+F3S1b
+######
+#Fig3_S1b
+# pdf("../../figures/Fig3S1b.pdf", width = 4, height = 4)
+# F3S1b
+# dev.off()
+
+######
+
+
+# p value qqplot
+
+RvC.translation.buffering.sorted.logP<--log10(sort(RvC.translation.buffering.pval))
+
+RvC.protein.buffering.sorted.logP<--log10(sort(RvC.protein.buffering.pval))
+
+
+
+expected <- c(1:length(RvC.protein.buffering.sorted.logP)) 
+log.exp <- -(log10(expected / (length(expected)+1)))
+
+
+plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 Pvalue)", ylab="Observed (-log10 Pvalue)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="rhesus vs chimpanzee gene expression buffering")
+points(log.exp, RvC.translation.buffering.sorted.logP, pch=18, cex=.6, col="orange") 
+points(log.exp, RvC.protein.buffering.sorted.logP, pch=18, cex=.6, col="blue") 
+legend("topleft",c("translational","posttranslational"),col = c("orange","blue"),pch=18,cex=.6, bty="n", horiz=TRUE)
+
+######
+#Fig3_S2a
+# pdf("../../figures/Fig3S2a.pdf", width = 4, height = 4)
+# 
+# plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 p-value)", ylab="Observed (-log10 p-value)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="RvC: gene expression buffering")
+# points(log.exp, RvC.translation.buffering.sorted.logP, pch=18, cex=.6, col="orange") 
+# points(log.exp, RvC.protein.buffering.sorted.logP, pch=18, cex=.6, col="blue") 
+# legend("topleft",c("translational","post-translational"),col = c("orange","blue"),pch=18,cex=.75, bty="n", horiz=TRUE)
+# 
+# 
+# dev.off()
+
+######
+
+```
+
+scatter plots for visualize results RvH (supplement)
+```{r}
+library(ggplot2)
+
+# rhesus vs human translation buffering plot 
+
+RvH.FWER<-p.adjust(RvH.translation.buffering.pval,method = "bonferroni")
+
+length(which(RvH.FWER < 0.05))
+
+RvH.qval<- qvalue(RvH.translation.buffering.pval)$qvalues
+
+length(which(RvH.qval < 0.01))
+
+# color by FWER value < 0.05
+point.color <- cut(RvH.FWER,breaks = c (0,0.05,1), labels = c("blue","grey50"))
+
+#point.color <- cut(RvH.qval,breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+
+F3S1c <- ggplot(mapping = aes(x=RvH.RNA.effect,y=RvH.ribo.effect))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(rhesus/human) RNA")+ylab("log2(rhesus/human) RPF")+ggtitle("RvH: translational buffering")+scale_x_continuous(limits = c(-10, 10))+scale_y_continuous(limits = c(-10, 10))+theme_bw()+geom_abline(slope = 1, intercept = 0)
+
+F3S1c
+######
+#Fig3_S1c
+# pdf("../../figures/Fig3S1c.pdf", width = 4, height = 4)
+# F3S1c
+# dev.off()
+
+######
+
+
+# rhesus vs human protein buffering plot 
+
+RvH.FWER<-p.adjust(RvH.protein.buffering.pval,method = "bonferroni")
+
+length(which(RvH.FWER < 0.05))
+
+RvH.qval<- qvalue(RvH.protein.buffering.pval)$qvalues
+
+length(which(RvH.qval < 0.01))
+
+
+# color by FWER value < 0.01
+point.color <- cut(RvH.FWER,breaks = c (0,0.05,1), labels = c("blue","grey50"))
+
+#point.color <- cut(RvH.qval,breaks = c (0,0.01,1), labels = c("blue","grey50"))
+
+
+F3S1d <- ggplot(mapping = aes(x=RvH.ribo.effect,y=RvH.protein.effect))+geom_point(size=1, alpha=0.5, col=point.color)+ xlab("log2(rhesus/human) RPF")+ylab("log2(rhesus/human) protein")+ggtitle("RvH: post-translational buffering")+scale_x_continuous(limits = c(-10, 10))+scale_y_continuous(limits = c(-10, 10))+theme_bw()+geom_abline(slope = 1, intercept = 0)
+
+
+F3S1d
+######
+#Fig3_S1d
+# pdf("../../figures/Fig3S1d.pdf", width = 4, height = 4)
+# F3S1d
+# dev.off()
+
+######
+
+
+# p value qqplot
+
+RvH.translation.buffering.sorted.logP<--log10(sort(RvH.translation.buffering.pval))
+
+RvH.protein.buffering.sorted.logP<--log10(sort(RvH.protein.buffering.pval))
+
+
+
+expected <- c(1:length(RvH.protein.buffering.sorted.logP)) 
+log.exp <- -(log10(expected / (length(expected)+1)))
+
+
+plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 Pvalue)", ylab="Observed (-log10 Pvalue)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="rhesus vs human gene expression buffering")
+points(log.exp, RvH.translation.buffering.sorted.logP, pch=18, cex=.6, col="orange") 
+points(log.exp, RvH.protein.buffering.sorted.logP, pch=18, cex=.6, col="blue") 
+legend("topleft",c("translational","posttranslational"),col = c("orange","blue"),pch=18,cex=.6, bty="n", horiz=TRUE)
+
+
+
+######
+#Fig3_S2b
+# pdf("../../figures/Fig3S2b.pdf", width = 4, height = 4)
+# plot(c(0,7), c(0,7), col="red", lwd=2, type="l", xlab="Expected (-log10 p-value)", ylab="Observed (-log10 p-value)", xlim=c(0,4), ylim=c(0,20), las=1, xaxs="i", yaxs="i", bty="l", main="RvH: gene expression buffering")
+# points(log.exp, RvH.translation.buffering.sorted.logP, pch=18, cex=.6, col="orange") 
+# points(log.exp, RvH.protein.buffering.sorted.logP, pch=18, cex=.6, col="blue") 
+# legend("topleft",c("translational","post-translational"),col = c("orange","blue"),pch=18,cex=.75, bty="n", horiz=TRUE)
+# dev.off()
+
+######
+
+
+
+```
+
+
+make datafrmae for protein buffering p values and effect sizes
+```{r}
+library(plyr)
+
+protein.buffering.results <- as.data.frame(expressed.gene.names)
+names(protein.buffering.results)[1] <- "gene.symbol"
+
+protein.buffering.results$HvC.pval <- HvC.protein.buffering.pval
+protein.buffering.results$RvC.pval <- RvC.protein.buffering.pval
+protein.buffering.results$RvH.pval <- RvH.protein.buffering.pval
+
+# label genes with ENSGID (rownames)
+protein.buffering.results$ENSG <- rownames(protein.buffering.results)
+
+
+#read in protein length
+
+read.table("../rdas/uniprot.reviewd.genename.proteinlength.030515.table", sep="\t", header=T)->protein.length
+names(protein.length)<-c("gene.symbol","protein.length.aa")
+
+# compute median protein length for each gene
+int.features <- function(x) {
+  c(protein.length.aa=median(x$protein.length.aa))
+}
+int.protein.length <- ddply(protein.length, c("gene.symbol"), int.features)
+
+protein.buffering.results.length <- merge(protein.buffering.results,int.protein.length)
+
+```
+
+Check gene length bias and GC bias for buffered genes (supplement Figure 3 S3)
+```{r}
+
+# load data for UTR length, GC content and such (supplement)
+
+gene.stats <- read.delim(gzfile("../rdas/gene_stats.txt.gz"), stringsAsFactors=F)
+int.features <- function(x) {
+  c(
+    coding.len=median(x$coding.len),
+    gc.content=median(x$gc.content),
+    total.len=median(x$coding.len + x$utr5.len + x$utr3.len)
+    )
+}
+int.stats <- ddply(gene.stats, c("ENSG"), int.features)
+
+gene.stats <- merge(protein.buffering.results, int.stats)
+
+# check length bias
+
+r2 <- paste("r^2 == ", round(cor(-log10(gene.stats$HvC.pval), log10(gene.stats$total.len))^2, 4)) 
+
+
+F3S3a <- ggplot(mapping = aes(x=-log10(gene.stats$HvC.pval),y=log10(gene.stats$total.len)))+geom_point(size=0.75, alpha=0.3, col="black")+ xlab("-log10(p-value)")+ylab("log10[gene length (bp)]")+theme_bw()+stat_smooth(method = "lm")+ggtitle("HvC: length distribution for \n post-translationally buffered genes")+theme(plot.title = element_text(size = 12)) + annotate("text",label=r2, x=9, y=4,parse=TRUE)
+
+
+F3S3a
+   
+
+######
+#fig3_S3a
+# pdf("../../figures/Fig3S3a.pdf", width = 4, height = 4)
+# F3S3a
+# dev.off()
+######
+
+
+r2 <- paste("r^2 == ", round(cor(-log10(gene.stats$RvC.pval), log10(gene.stats$total.len))^2, 4)) 
+
+
+F3S3b <- ggplot(mapping = aes(x=-log10(gene.stats$RvC.pval),y=log10(gene.stats$total.len)))+geom_point(size=0.75, alpha=0.3, col="black")+ xlab("-log10(p-value)")+ylab("log10[gene length (bp)]")+theme_bw()+stat_smooth(method = "lm")+ggtitle("RvC: length distribution for \n post-translationally buffered genes")+theme(plot.title = element_text(size = 12)) + annotate("text",label=r2, x=9, y=4,parse=TRUE)
+
+
+F3S3b
+
+
+######
+#fig3_S3b
+# pdf("../../figures/Fig3S3b.pdf", width = 4, height = 4)
+# F3S3b
+# dev.off()
+######
+
+
+
+r2 <- paste("r^2 == ", round(cor(-log10(gene.stats$RvH.pval), log10(gene.stats$total.len))^2, 4)) 
+
+
+F3S3c <- ggplot(mapping = aes(x=-log10(gene.stats$RvH.pval),y=log10(gene.stats$total.len)))+geom_point(size=0.75, alpha=0.3, col="black")+ xlab("-log10(p-value)")+ylab("log10[gene length (bp)]")+theme_bw()+stat_smooth(method = "lm")+ggtitle("RvH: length distribution for \n post-translationally buffered genes")+theme(plot.title = element_text(size = 12)) + annotate("text",label=r2, x=9, y=4,parse=TRUE)
+
+
+F3S3c
+
+
+######
+#fig3_S3c
+# pdf("../../figures/Fig3S3c.pdf", width = 4, height = 4)
+# F3S3c
+# dev.off()
+######
+
+
+# check GC content bias
+
+
+r2 <- paste("r^2 == ", round(cor(-log10(gene.stats$HvC.pval), gene.stats$gc.content)^2, 4)) 
+
+
+F3S3d <- ggplot(mapping = aes(x=-log10(gene.stats$HvC.pval),y=100*gene.stats$gc.content))+geom_point(size=0.75, alpha=0.3, col="black")+ xlab("-log10(p-value)")+ylab("GC content (%)")+theme_bw()+stat_smooth(method = "lm")+ggtitle("HvC: GC content distribution for \n post-translationally buffered genes")+theme(plot.title = element_text(size = 12)) + annotate("text",label=r2, x=9, y=65,parse=TRUE)
+
+
+F3S3d
+
+
+######
+#fig3_S3d
+# pdf("../../figures/Fig3S3d.pdf", width = 4, height = 4)
+# F3S3d
+# dev.off()
+######
+
+
+
+r2 <- paste("r^2 == ", round(cor(-log10(gene.stats$RvC.pval), gene.stats$gc.content)^2, 5)) 
+
+
+F3S3e <- ggplot(mapping = aes(x=-log10(gene.stats$RvC.pval),y=100*gene.stats$gc.content))+geom_point(size=0.75, alpha=0.3, col="black")+ xlab("-log10(p-value)")+ylab("GC content (%)")+theme_bw()+stat_smooth(method = "lm")+ggtitle("RvC: GC content distribution for \n post-translationally buffered genes")+theme(plot.title = element_text(size = 12)) + annotate("text",label=r2, x=9, y=65,parse=TRUE)
+
+
+F3S3e
+
+
+######
+#fig3_S3e
+# pdf("../../figures/Fig3S3e.pdf", width = 4, height = 4)
+# F3S3e
+# dev.off()
+######
+
+
+
+r2 <- paste("r^2 == ", round(cor(-log10(gene.stats$RvH.pval), gene.stats$gc.content)^2, 4)) 
+
+
+F3S3f <- ggplot(mapping = aes(x=-log10(gene.stats$RvH.pval),y=100*gene.stats$gc.content))+geom_point(size=0.75, alpha=0.3, col="black")+ xlab("-log10(p-value)")+ylab("GC content (%)")+theme_bw()+stat_smooth(method = "lm")+ggtitle("RvH: GC content distribution for \n post-translationally buffered genes")+theme(plot.title = element_text(size = 12)) + annotate("text",label=r2, x=9, y=65,parse=TRUE)
+
+
+F3S3f
+
+
+######
+#fig3_S3f
+# pdf("../../figures/Fig3S3f.pdf", width = 4, height = 4)
+# F3S3f
+# dev.off()
+######
+
+
+
+```
+
+
+Enrichment analysis: dN (nubmer of AA substitutions standardized by possible sites) and dN/dS (purifying selection on coding region)
+```{r}
+
+dN.dS.data <- read.delim(gzfile("../rdas/dNdS_pairwise.txt.gz"))
+names(dN.dS.data)[1] <- "ENSG"
+dN.dS.data <- dN.dS.data[dN.dS.data$dS.hc != 0,]
+dN.dS.data$dN.dS.hc <- dN.dS.data$dN.hc / dN.dS.data$dS.hc
+dN.dS.data$dN.dS.hr <- dN.dS.data$dN.hr / dN.dS.data$dS.hr
+dN.dS.data$dN.dS.cr <- dN.dS.data$dN.cr / dN.dS.data$dS.cr
+
+protein.buffering.pval.dNdS <- merge(protein.buffering.results.length, dN.dS.data)
+
+# HvC
+cor.test(-log10(protein.buffering.pval.dNdS$HvC.pval), protein.buffering.pval.dNdS$dN.dS.hc)
+
+cor.test(-log10(protein.buffering.pval.dNdS$HvC.pval), protein.buffering.pval.dNdS$dN.hc)
+
+
+# RvC
+cor.test(-log10(protein.buffering.pval.dNdS$RvC.pval), protein.buffering.pval.dNdS$dN.dS.cr)
+
+cor.test(-log10(protein.buffering.pval.dNdS$RvC.pval), protein.buffering.pval.dNdS$dN.cr)
+
+
+# RvH
+cor.test(-log10(protein.buffering.pval.dNdS$RvH.pval), protein.buffering.pval.dNdS$dN.dS.hr)
+
+cor.test(-log10(protein.buffering.pval.dNdS$RvH.pval), protein.buffering.pval.dNdS$dN.hr)
+
+
+# pull test results together in a vector
+# test for both positive and negative correlations
+#dNdS
+HvC.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$HvC.pval), protein.buffering.pval.dNdS$dN.dS.hc)
+RvC.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$RvC.pval), protein.buffering.pval.dNdS$dN.dS.cr)
+RvH.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$RvH.pval), protein.buffering.pval.dNdS$dN.dS.hr)
+dNdS.results<- c("dNdS",HvC.cor.test$estimate,HvC.cor.test$p.value,RvC.cor.test$estimate,RvC.cor.test$p.value,RvH.cor.test$estimate,RvH.cor.test$p.value)
+
+dNdS.results
+
+dNdS.dir <- substring(dNdS.results,1,1)
+dNdS.dir[dNdS.dir == 0] <- "+"
+
+dNdS.results[c(2,4,6)] <- dNdS.dir[c(2,4,6)]
+
+
+#dN
+HvC.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$HvC.pval), protein.buffering.pval.dNdS$dN.hc)
+RvC.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$RvC.pval), protein.buffering.pval.dNdS$dN.cr)
+RvH.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$RvH.pval), protein.buffering.pval.dNdS$dN.hr)
+dN.results<- c("dN",HvC.cor.test$estimate,HvC.cor.test$p.value,RvC.cor.test$estimate,RvC.cor.test$p.value,RvH.cor.test$estimate,RvH.cor.test$p.value)
+
+dN.results
+
+dN.dir <- substring(dN.results,1,1)
+dN.dir[dN.dir == 0] <- "+"
+
+dN.results[c(2,4,6)] <- dN.dir[c(2,4,6)]
+# 
+# # test for only positive correlations
+# #dNdS
+# HvC.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$HvC.pval), protein.buffering.pval.dNdS$dN.dS.hc, alternative = "greater")
+# RvC.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$RvC.pval), protein.buffering.pval.dNdS$dN.dS.cr, alternative = "greater")
+# RvH.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$RvH.pval), protein.buffering.pval.dNdS$dN.dS.hr, alternative = "greater")
+# dNdS.results<- c("dNdS",HvC.cor.test$estimate,HvC.cor.test$p.value,RvC.cor.test$estimate,RvC.cor.test$p.value,RvH.cor.test$estimate,RvH.cor.test$p.value)
+# 
+# dNdS.results
+# 
+# #dN
+# HvC.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$HvC.pval), protein.buffering.pval.dNdS$dN.hc, alternative = "greater")
+# RvC.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$RvC.pval), protein.buffering.pval.dNdS$dN.cr, alternative = "greater")
+# RvH.cor.test <- cor.test(-log10(protein.buffering.pval.dNdS$RvH.pval), protein.buffering.pval.dNdS$dN.hr, alternative = "greater")
+# dN.results<- c("dN",HvC.cor.test$estimate,HvC.cor.test$p.value,RvC.cor.test$estimate,RvC.cor.test$p.value,RvH.cor.test$estimate,RvH.cor.test$p.value)
+# 
+# 
+# dN.results
+# 
+
+
+###### table S2
+### write out dN and dN/dS enrichment results as table S2
+
+names(dN.results) <- c("","HvC.cor","HvC.pvalue","RvC.cor","RvC.pvalue","RvH.cor","RvH.pvalue")
+
+substitution.rate <- rbind(dN.results, dNdS.results)
+
+rownames(substitution.rate) <- c("Ka","Ka/Ks")
+
+substitution.rate[,c(3,5,7)] <- format(as.numeric(substitution.rate[,c(3,5,7)]), digits=2)
+
+#write.csv(substitution.rate[,-1],"../../tables/tableS2.csv", quote = F)
+######
+
+# plot out dN vs buffering p value for HvC
+######### Figure 
+
+pvalue.by.dN <- list()
+
+for (i in 1:4){ 
+  pvalue.by.dN[[i]] <- protein.buffering.pval.dNdS$dN.hc[which(-log10(protein.buffering.pval.dNdS$HvC.pval) > i-1 & -log10(protein.buffering.pval.dNdS$HvC.pval) <i) ]
+}
+pvalue.by.dN[[5]] <- protein.buffering.pval.dNdS$dN.hc[which(-log10(protein.buffering.pval.dNdS$HvC.pval) > 4)]
+
+
+HvC.mean.pvalue.by.dN<- unlist(lapply(pvalue.by.dN,mean))
+HvC.sd.pvalue.by.dN<- unlist(lapply(pvalue.by.dN,sd))
+HvC.se.pvalue.by.dN <- HvC.sd.pvalue.by.dN/sqrt(lengths(pvalue.by.dN))
+
+
+
+plot(c(1:5),HvC.mean.pvalue.by.dN, ylim = c(0,0.04),pch = 19,ylab = "Ka", xlab = ("-log10(p-value)"), main = "buffered genes are not enriched of nonsynonymous substitutions",xaxt="n", cex = 0.5, col = rgb(0,0,0))
+axis(1,at = (1:5),labels = c("0~1","1~2","2~3","3~4","4~"))
+
+arrows(c(1:5), HvC.mean.pvalue.by.dN-HvC.se.pvalue.by.dN, c(1:5), HvC.mean.pvalue.by.dN+HvC.se.pvalue.by.dN, length=0, angle=90, code=3, lwd = 4, col = rgb(0,0,0,0.5))
+
+######
+
+######
+#figure 3d
+
+# pdf("../../figures/Fig3d.pdf", width = 4, height = 3)
+# plot(c(1:5),HvC.mean.pvalue.by.dN, ylim = c(0,0.04),pch = 19,ylab = "Ka", xlab = ("-log10(p-value)"), main = "Post-translationally buffered genes are \n not enriched for nonsynonymous substitutions",xaxt="n", cex = 0.5, col = rgb(0,0,0), cex.main=0.9)
+# axis(1,at = (1:5),labels = c("0~1","1~2","2~3","3~4","4~"))
+# arrows(c(1:5), HvC.mean.pvalue.by.dN-HvC.se.pvalue.by.dN, c(1:5), HvC.mean.pvalue.by.dN+HvC.se.pvalue.by.dN, length=0, angle=90, code=3, lwd = 4, col = rgb(0,0,0,0.5))
+# 
+# dev.off()
+######
+
+
+```
+
+
+
+Enrichment PTM
+```{r}
+# read in data and save in a list
+PTM.label <- c("Ubiquitination","Phosphorylation","Acetylation","Methylation","Sumoylation","O-GalNAc","O-GlcNAc")
+
+number.reported.PTM.sites <- list()
+for (i in 1:length(PTM.label)){
+
+number.reported.PTM.sites[[i]] <- read.delim(gzfile(paste0("../rdas/PSP_Download_AUG_5_2016/",PTM.label[i],"_site_dataset.gz")), stringsAsFactors=F,skip = 3)
+  
+#number.reported.PTM.sites[[i]] <- read.delim(gzfile(paste0("~/Desktop/PSP_Download_AUG_5_2016/",PTM.label[i],"_site_dataset.gz")), stringsAsFactors=F,skip = 3)
+
+  
+  }
+
+
+# writ a funtion for enrichment test
+
+Mod.site.enrich <- function(modData, DEresults, hitCutoff){
+
+  names(modData)[3] <- "gene.symbol"
+  modData$gene.symbol <- toupper(modData$gene.symbol)
+  
+    modData$ORGANISM <- tolower(modData$ORGANISM)
+    modData <- modData[which(modData$ORGANISM == "human"),]
+  
+  modData <- modData[which(modData$gene.symbol != ""),]
+  
+  count.sites <- function(x) { c(n.sites=dim(x)[1])}
+  
+  if(missing(hitCutoff)){
+    
+  modData.sites <- ddply(modData, c("gene.symbol"), count.sites)
+  
+  pval.modData.sites <- merge(DEresults, modData.sites)
+  
+  # pull test results together in a vector
+  
+  HvC.cor.test <- cor.test(-log10(pval.modData.sites$HvC.pval), pval.modData.sites$n.sites/pval.modData.sites$protein.length.aa)
+  RvC.cor.test <- cor.test(-log10(pval.modData.sites$RvC.pval), pval.modData.sites$n.sites/pval.modData.sites$protein.length.aa)
+  RvH.cor.test <- cor.test(-log10(pval.modData.sites$RvH.pval), pval.modData.sites$n.sites/pval.modData.sites$protein.length.aa)
+  }
+  
+  else{
+    modData[is.na(modData)] <- 0
+    confident.hit.index <- modData$LT_LIT+modData$MS_LIT+modData$MS_CST > hitCutoff
+    modData.highHit <- modData[confident.hit.index,]
+    modData.lowHit <- modData[-confident.hit.index,]
+    
+    modData.condifent.sites <- ddply(modData.highHit, c("gene.symbol"), count.sites)
+    modData.spurious.sites <- ddply(modData.lowHit, c("gene.symbol"), count.sites)
+    modData.sites <- merge(modData.condifent.sites,modData.spurious.sites,all.x = T, all.y = T, by = "gene.symbol")
+    # name the number of confident sites as n.sites for enrichment test
+    names(modData.sites)[2] <- "n.sites"
+   
+    modData.sites[is.na(modData.sites)]<-0
+
+    pval.modData.sites <- merge(DEresults, modData.sites)
+    
+    # pull test results together in a vector
+    
+    HvC.cor.test <- cor.test(-log10(pval.modData.sites$HvC.pval), pval.modData.sites$n.sites/pval.modData.sites$protein.length.aa)
+    RvC.cor.test <- cor.test(-log10(pval.modData.sites$RvC.pval), pval.modData.sites$n.sites/pval.modData.sites$protein.length.aa)
+    RvH.cor.test <- cor.test(-log10(pval.modData.sites$RvH.pval), pval.modData.sites$n.sites/pval.modData.sites$protein.length.aa)
+    
+      }
+  
+  modData.results<- c(HvC.cor.test$estimate,HvC.cor.test$p.value,RvC.cor.test$estimate,RvC.cor.test$p.value,RvH.cor.test$estimate,RvH.cor.test$p.value)
+  return(modData.results)
+  
+}
+
+
+# run the funtion to count
+
+#Mod.site.enrich.bufferedGenes.results <- lapply(number.reported.PTM.sites, Mod.site.enrich, protein.buffering.results.length, 1)
+
+Mod.site.enrich.bufferedGenes.results <- lapply(number.reported.PTM.sites, Mod.site.enrich, protein.buffering.results.length)
+
+
+Mod.site.enrich.bufferedGenes.results <- as.data.frame(Mod.site.enrich.bufferedGenes.results, stringsAsFactors = FALSE)
+names(Mod.site.enrich.bufferedGenes.results) <- PTM.label
+
+rownames(Mod.site.enrich.bufferedGenes.results) <- c("HvC.cor","HvC.pvalue","RvC.cor","RvC.pvalue","RvH.cor","RvH.pvalue")
+
+Mod.site.enrich.bufferedGenes.results[Mod.site.enrich.bufferedGenes.results == 0] <- "2.2e-16"
+
+Mod.site.enrich.bufferedGenes.results<- t(Mod.site.enrich.bufferedGenes.results)
+
+#Mod.site.enrich.bufferedGenes.results <- trimws(Mod.site.enrich.bufferedGenes.results,which = "both")
+#Mod.site.enrich.bufferedGenes.results[c(2,4,6),]
+#cor.dir <- substring(Mod.site.enrich.bufferedGenes.results,1,1)
+#cor.dir[cor.dir != "-"] <- "+"
+
+#Mod.site.enrich.bufferedGenes.results[,c(1,3,5)] <- cor.dir[,c(1,3,5)]
+
+# write PTM enrichment results out as tableS3
+######
+tableS3 <- Mod.site.enrich.bufferedGenes.results
+tableS3
+#rownames(tableS3) <- c("HvC", "RvC", "RvH")
+#tableS3[,c(2,4,6)]<- format(as.numeric(tableS3[,c(2,4,6)]),digits = 3)
+
+#write.csv(tableS3,"../../tables/tableS3.csv", quote = F)
+
+
+######
+# make bar plots to show correlation between buffering p value and nubmer of ubq sites
+
+# HvC
+
+ubiq <- read.delim(gzfile("../rdas/Ubiquitination_site_dataset.gz"), stringsAsFactors=F)
+names(ubiq)[3] <- "gene.symbol"
+ubiq$gene.symbol <- toupper(ubiq$gene.symbol)
+# will have to change this line to fit the updated dataset from cell singnaling
+ubiq$ORG <- tolower(ubiq$ORG)
+ubiq <- ubiq[which(ubiq$ORG == "human"),]
+ubiq <- ubiq[which(ubiq$gene.symbol != ""),]
+
+
+count.sites <- function(x) { c(n.sites=dim(x)[1])}
+
+ubiq.sites <- ddply(ubiq, c("gene.symbol"), count.sites)
+protein.buffering.pval.ubiq.sites <- merge(protein.buffering.results.length, ubiq.sites)
+
+pvalue.by.ubq <- list()
+protein.buffering.pval.ubiq.sites$sites.per.aa <- protein.buffering.pval.ubiq.sites$n.sites/protein.buffering.pval.ubiq.sites$protein.length.aa
+for (i in 1:4){ 
+  pvalue.by.ubq[[i]] <- protein.buffering.pval.ubiq.sites$sites.per.aa[which(-log10(protein.buffering.pval.ubiq.sites$HvC.pval) > i-1 & -log10(protein.buffering.pval.ubiq.sites$HvC.pval) <i) ]
+}
+pvalue.by.ubq[[5]] <- protein.buffering.pval.ubiq.sites$sites.per.aa[which(-log10(protein.buffering.pval.ubiq.sites$HvC.pval) > 4)]
+
+
+HvC.mean.pvalue.by.ubq<- unlist(lapply(pvalue.by.ubq,mean))
+HvC.sd.pvalue.by.ubq<- unlist(lapply(pvalue.by.ubq,sd))
+HvC.se.pvalue.by.ubq <- HvC.sd.pvalue.by.ubq/sqrt(lengths(pvalue.by.ubq))
+
+plot(c(1:5),HvC.mean.pvalue.by.ubq, ylim = c(0,0.04),pch = 19,ylab = "NO. of ubq site per aa", xlab = ("-log10(p-value)"), main = "buffered genes have more ubiquitination sites",xaxt="n", cex = 0.5, col = rgb(0,0,0))
+axis(1,at = (1:5),labels = c("0~1","1~2","2~3","3~4","4~"))
+
+arrows(c(1:5), HvC.mean.pvalue.by.ubq-HvC.se.pvalue.by.ubq, c(1:5), HvC.mean.pvalue.by.ubq+HvC.se.pvalue.by.ubq, length=0, angle=90, code=3, lwd = 4, col = rgb(1,0.5,0,0.5))
+
+
+######
+#figure 3e
+# pdf("../../figures/Fig3e.pdf", width = 4, height = 3)
+# plot(c(1:5),HvC.mean.pvalue.by.ubq, ylim = c(0,0.04),pch = 19,ylab = "NO. of ubq site per aa", xlab = ("-log10(p-value)"), main = "Post-translationally buffered genes have \n more ubiquitination sites",xaxt="n", cex = 0.5, col = rgb(0,0,0), cex.main=0.9)
+# axis(1,at = (1:5),labels = c("0~1","1~2","2~3","3~4","4~"))
+# arrows(c(1:5), HvC.mean.pvalue.by.ubq-HvC.se.pvalue.by.ubq, c(1:5), HvC.mean.pvalue.by.ubq+HvC.se.pvalue.by.ubq, length=0, angle=90, code=3, lwd = 4, col = rgb(1,0.5,0,0.5))
+# dev.off()
+######
+
+
+
+```
+
+
+
+
+Enrichment analysis: subcellular localization and GO
+```{r}
+
+# uniprot
+
+subcell<- read.delim(gzfile("../rdas/uniprot_reviewed_human_SubCell_GO.tab.gz"), stringsAsFactors=F)
+
+names(subcell)[2] <- "gene.symbol"
+
+protein.buffering.results.subcell<-merge(protein.buffering.results,subcell)
+
+
+# create a list of subcellular locations of interests
+SubCellLoc.list<- c("Cytoplasm","Endoplasmic", "Golgi", "cytosol", "Nucleus", "Lysosome", "Mitochondrion", "Peroxisome", "Membrane", "endosome", "Secreted", "P-body")
+  
+Enrichment.results <- as.data.frame(matrix(nrow = length(SubCellLoc.list),ncol = 8))
+names(Enrichment.results) <- c("SubCellLoc","NO. of genes associated","HvC.cor","HvC.p.value","RvC.cor","RvC.p.value","HvR.cor","HvR.p.value")
+
+
+# write a for loop to grep the subcellular location terms and test for association with significance of protein buffering 
+for (i in 1:length(SubCellLoc.list)){
+E.index<-grep(SubCellLoc.list[i],protein.buffering.results.subcell$Subcellular.location..CC.,fixed = TRUE)
+E.boolean<-rep(FALSE,dim(protein.buffering.results.subcell)[1])
+E.boolean[E.index] <- TRUE
+
+HvC.cor.test <- cor.test(-log10(protein.buffering.results.subcell$HvC.pval), as.numeric(E.boolean))
+RvC.cor.test <- cor.test(-log10(protein.buffering.results.subcell$RvC.pval), as.numeric(E.boolean))
+RvH.cor.test <- cor.test(-log10(protein.buffering.results.subcell$RvH.pval), as.numeric(E.boolean))
+
+Enrichment.results[i,] <- c(SubCellLoc.list[i],paste0(table(E.boolean)[2],"|",table(E.boolean)[1]),HvC.cor.test$estimate,HvC.cor.test$p.value,RvC.cor.test$estimate,RvC.cor.test$p.value,RvH.cor.test$estimate,RvH.cor.test$p.value)
+}
+
+
+Enrichment.results$HvC.fdr <- p.adjust(as.numeric(Enrichment.results$HvC.p.value), method = "fdr")   
+Enrichment.results$RvC.fdr <- p.adjust(as.numeric(Enrichment.results$RvC.p.value), method = "fdr")  
+Enrichment.results$HvR.fdr <- p.adjust(as.numeric(Enrichment.results$HvR.p.value), method = "fdr")  
+
+results.table <- Enrichment.results[,c(1:3,5,7,4,6,8:11)]
+results.table$HvC.cor[results.table$HvC.cor < 0] <- "-"
+results.table$HvC.cor[results.table$HvC.cor > 0] <- "+"
+
+results.table$RvC.cor[results.table$RvC.cor < 0] <- "-"
+results.table$RvC.cor[results.table$RvC.cor > 0] <- "+"
+
+results.table$HvR.cor[results.table$HvR.cor < 0] <- "-"
+results.table$HvR.cor[results.table$HvR.cor > 0] <- "+"
+
+results.table
+
+######
+#write sub cellular localization results to tableS4
+tableS4 <- results.table[,1:8]
+
+tableS4[,6:8] <- format(as.numeric(as.matrix(tableS4[,6:8])),digit=3)
+
+#write.csv(tableS4,"../../tables/tableS4.csv", quote = F,row.names = F)
+######
+## Gene Ontology terms
+
+# create a list of GO terms associated with the portein "universe"
+GO.ID.list<-unique(unlist(strsplit(protein.buffering.results.subcell$Gene.ontology.IDs,split = "; ")))
+
+GO.results <- as.data.frame(matrix(nrow = length(GO.ID.list),ncol = 8))
+names(GO.results) <- c("GO.ID","NO. of genes associated","HvC.cor","HvC.p.value","RvC.cor","RvC.p.value","HvR.cor","HvR.p.value")
+
+
+# write a for loop to grep the GO term and test for association with protein buffering
+for (i in 1:length(GO.ID.list)){
+GO.index<-grep(GO.ID.list[i],protein.buffering.results.subcell$Gene.ontology.IDs)
+GO.boolean<-rep(FALSE,dim(protein.buffering.results.subcell)[1])
+GO.boolean[GO.index] <- TRUE
+
+HvC.cor.test <- cor.test(-log10(protein.buffering.results.subcell$HvC.pval), as.numeric(GO.boolean))
+RvC.cor.test <- cor.test(-log10(protein.buffering.results.subcell$RvC.pval), as.numeric(GO.boolean))
+RvH.cor.test <- cor.test(-log10(protein.buffering.results.subcell$RvH.pval), as.numeric(GO.boolean))
+
+GO.results[i,] <- c(GO.ID.list[i],paste0(table(GO.boolean)[2],"|",table(GO.boolean)[1]),HvC.cor.test$estimate,HvC.cor.test$p.value,RvC.cor.test$estimate,RvC.cor.test$p.value,RvH.cor.test$estimate,RvH.cor.test$p.value)
+}
+
+
+# asign a "minimum" p value of "2.220446e-16" for the enries that got rounded down to zero 
+
+GO.results$HvC.p.value[which(GO.results$HvC.p.value == 0)] <- "2.220446e-16"
+GO.results$RvC.p.value[which(GO.results$RvC.p.value == 0)] <- "2.220446e-16"
+GO.results$HvR.p.value[which(GO.results$HvR.p.value == 0)] <- "2.220446e-16"
+
+
+
+GO.results$HvC.fdr <- p.adjust(as.numeric(GO.results$HvC.p.value), method = "fdr")   
+GO.results$RvC.fdr <- p.adjust(as.numeric(GO.results$RvC.p.value), method = "fdr")  
+GO.results$HvR.fdr <- p.adjust(as.numeric(GO.results$HvR.p.value), method = "fdr") 
+
+# load Gene Ontology ID and description table to print out a summary 
+
+IDtoTerm<- read.delim("../rdas/GO_IDtoTerm.table",header = F, stringsAsFactors = F,sep = "\t",skip = 11)
+ 
+names(IDtoTerm) <- c("GO.ID", "Secondary.ID", "Term", "F|P|C","status")
+
+GO.results <- merge(GO.results,IDtoTerm)
+
+GO.top.table<- GO.results[GO.results$HvC.fdr < 0.01 & GO.results$HvR.fdr < 0.01 & GO.results$RvC.fdr < 0.01,]
+
+GO.top.table[,c(1:3,5,7,9:11,13)]
+
+
+######
+# tableS5
+
+tableS5 <- GO.top.table[,c(1,13,2,3,5,7,9:11)]
+
+cor.dir <- substring(as.matrix(tableS5),1,1)
+cor.dir[cor.dir != "-"] <- "+"
+
+tableS5[,4:6] <- cor.dir[,4:6]
+
+
+tableS5[,7:9] <- format(as.numeric(as.matrix(tableS5[,7:9])),digit=3)
+
+tableS5$Term <- sub(","," &",tableS5$Term)
+
+#write.csv(tableS5,"../../tables/tableS5.csv", quote = F,row.names = F)
+######
+
+# genes that are shared across GO enrichment terms
+top.GO.index <- list()
+top.GO.terms <- GO.top.table[,1]
+for (i in 1:length(top.GO.terms)){
+  top.GO.index[[i]]<-grep(top.GO.terms[i],protein.buffering.results.subcell$Gene.ontology.IDs)
+}
+
+all.unique.index <- unique(unlist(top.GO.index))
+
+top.GO.result <- matrix(nrow = length(all.unique.index), ncol = length(top.GO.terms))
+colnames(top.GO.result) <- top.GO.terms
+rownames(top.GO.result) <- protein.buffering.results.subcell$ENSG[all.unique.index]
+for (i in 1:length(top.GO.index)){
+  top.GO.result[,i] <- as.numeric(all.unique.index %in% unlist(top.GO.index[i]))
+}
+
+colSums(top.GO.result[which(apply(top.GO.result,1,sum) > 5),])
+
+colnames(top.GO.result) <- GO.top.table$Term
+
+colSums(top.GO.result[which(rowSums(top.GO.result) > 5),])
+
+share.matrix <- matrix(nrow = 12,ncol = 12)
+for (i in 1:12){
+share.matrix[,i]<- colSums(top.GO.result[which(top.GO.result[,i] == 1),])/sum(top.GO.result[which(top.GO.result[,i] == 1),i])
+}
+
+rownames(share.matrix) <- GO.top.table$Term
+colnames(share.matrix) <- GO.top.table$Term
+
+
+
+
+
+```
+
+Protein Protein Interactions
+```{r}
+# Protein protein interaction
+
+# the 3.4.139 version is updated on 07/26/16
+biogrid <- read.delim(gzfile("../rdas/BIOGRID-ORGANISM-Homo_sapiens-3.4.139.tab2.txt.gz"), stringsAsFactors=F)
+biogrid <- biogrid[which(biogrid$Experimental.System.Type == "physical"),]
+
+# from the contributing guide line, I learned that interactor A are the baits used in each experiment and interactor B are the hits. So it makes more sense to focus on nubmer of hits (interactor B) when reoprting number of protein protein interactions for each gene. Since nubmer of times for a gene being used as baits (interactor A) mainly reflects which genes people are more interested in studying. While counting interactor B is more appropriate, it still suffers from "publication bias".
+
+# simply sum up the nubmer of times a gene is show up as a hit (interactor B)
+interactor.B.counts <- function(x) {
+  c(counts.B=dim(x)[1])  
+}
+I.cnts.B <- ddply(biogrid, c("Official.Symbol.Interactor.B"), interactor.B.counts)
+
+names(I.cnts.B)[1] <- "gene.symbol"
+
+protein.buffering.pval.PPI <- merge(protein.buffering.results.length,I.cnts.B)
+
+HvC.cor.test <- cor.test(-log10(protein.buffering.pval.PPI$HvC.pval), protein.buffering.pval.PPI$counts.B)
+RvC.cor.test <- cor.test(-log10(protein.buffering.pval.PPI$RvC.pval), protein.buffering.pval.PPI$counts.B)
+RvH.cor.test <- cor.test(-log10(protein.buffering.pval.PPI$RvH.pval), protein.buffering.pval.PPI$counts.B)
+
+PPI.results<- c("PPI",HvC.cor.test$estimate,HvC.cor.test$p.value,RvC.cor.test$estimate,RvC.cor.test$p.value,RvH.cor.test$estimate,RvH.cor.test$p.value)
+
+PPI.results
+```
+
+
+
+
+relaxation in transcription regulation
+
+
+
+# load YRI RNA data
+```{r}
+read.csv("../rdas/battle_etal_RNA_logCPM_data.csv")->YRI.RNA.CPM
+length(YRI.RNA.CPM$ENSG)
+
+
+# TMM normalization
+
+# calculate M value (log2 fold change relative to GM19238)
+
+YRI.RNA.M <- YRI.RNA.CPM[,2:76]-YRI.RNA.CPM$GM19238
+
+Tmean<-function(m,fractionTrimmed){
+n<-length(m)
+lo <- floor(n*fractionTrimmed)+1
+hi <- n + 1 -lo
+keep <- rank(m) > lo & rank(m) < hi
+mean(m[keep], na.rm = TRUE)
+}
+
+RNA.trimmed.mean.M.values <- apply(YRI.RNA.M,2,Tmean,0.3)
+
+
+YRI.RNA.CPM.TMM <- t(t(YRI.RNA.CPM[,2:76]) - RNA.trimmed.mean.M.values)
+
+
+# qunatile normalization
+
+library(limma)
+
+YRI.RNA.CPM.QN <- normalizeQuantiles(YRI.RNA.CPM[,2:76])
+
+
+CPM.mean <- apply(YRI.RNA.CPM[,2:76],1,mean)
+CPM.sd <- apply(YRI.RNA.CPM[,2:76],1,sd)
+
+CPM.TMM.mean <- apply(YRI.RNA.CPM.TMM,1,mean)
+CPM.TMM.sd <- apply(YRI.RNA.CPM.TMM,1,sd)
+
+CPM.QN.mean <- apply(YRI.RNA.CPM.QN,1,mean)
+CPM.QN.sd <- apply(YRI.RNA.CPM.QN,1,sd)
+
+
+
+YRI.RNA.CPM.mean.sd <- as.data.frame(YRI.RNA.CPM$ENSG)
+YRI.RNA.CPM.mean.sd$RNA.mean <- CPM.mean
+YRI.RNA.CPM.mean.sd$RNA.sd <- CPM.sd
+YRI.RNA.CPM.mean.sd$RNA.TMM.mean <- CPM.TMM.mean
+YRI.RNA.CPM.mean.sd$RNA.TMM.sd <- CPM.TMM.sd
+YRI.RNA.CPM.mean.sd$RNA.QN.mean <- CPM.QN.mean
+YRI.RNA.CPM.mean.sd$RNA.QN.sd <- CPM.QN.sd
+
+
+names(YRI.RNA.CPM.mean.sd)[1] <- "ENSG"
+
+protein.buffering.results.YRI <- merge(protein.buffering.results, YRI.RNA.CPM.mean.sd)
+
+F3S5 <- ggplot(mapping = aes(x=protein.buffering.results.YRI$RNA.mean,y=protein.buffering.results.YRI$RNA.sd))+geom_point(size=0.75, alpha=0.3, col="black")+ xlab("log2CPM")+ylab("standard deviation")+ggtitle("")+theme_bw()+stat_smooth(method = "loess")+ggtitle("YRI: RNA-seq mean-variance relationship")+theme(plot.title = element_text(size = 12))
+
+F3S5
+######
+#Fig3_S5
+# pdf("../../figures/Fig3S5.pdf", width = 4, height = 3)
+# F3S5
+# dev.off()
+
+######
+
+# load YRI protein expression data
+YRI.protein <- read.csv("../rdas/battle_etal_protein_log2_SILAC_ratio_data.csv")
+boxplot(YRI.protein[,c(2:63)], outline = FALSE)
+YRI.protein.mean <- apply(YRI.protein[,c(2:63)],1,mean,na.rm = TRUE)
+YRI.protein.sd <- apply(YRI.protein[,c(2:63)],1,sd,na.rm = TRUE)
+
+Protein.trimmed.mean.M.values <- apply(YRI.protein[,c(2:63)],2,Tmean,0.3)
+
+
+YRI.protein.TMM <- t(t(YRI.protein[,c(2:63)]) - Protein.trimmed.mean.M.values)
+
+YRI.protein.TMM.mean <- apply(YRI.protein.TMM,1,mean,na.rm = TRUE)
+YRI.protein.TMM.sd <- apply(YRI.protein.TMM,1,sd,na.rm = TRUE)
+
+YRI.protein.QN <- normalizeQuantiles(YRI.protein[,c(2:63)])
+
+YRI.protein.QN.mean <- apply(YRI.protein.QN,1,mean,na.rm = TRUE)
+YRI.protein.QN.sd <- apply(YRI.protein.QN,1,sd,na.rm = TRUE)
+
+
+protein.mean.sd <- as.data.frame(YRI.protein$ENSG)
+
+protein.mean.sd$protein.mean <- YRI.protein.mean
+protein.mean.sd$protein.sd <- YRI.protein.sd
+protein.mean.sd$protein.TMM.mean <- YRI.protein.TMM.mean
+protein.mean.sd$protein.TMM.sd <- YRI.protein.TMM.sd
+
+protein.mean.sd$protein.QN.mean <- YRI.protein.QN.mean
+protein.mean.sd$protein.QN.sd <- YRI.protein.QN.sd
+
+
+
+names(protein.mean.sd)[1] <- "ENSG"
+
+protein.buffering.results.YRI <- merge(protein.buffering.results.YRI, protein.mean.sd)
+
+
+YRI.expression.features <- protein.buffering.results.YRI[,-c(1:5)]
+
+
+
+
+# write a loop to test association with each feature
+
+Enrichment.results <- as.data.frame(matrix(nrow = length(YRI.expression.features[1,]),ncol = 7))
+
+names(Enrichment.results) <- c("feature","HvC.cor","HvC.p.value","RvC.cor","RvC.p.value","HvR.cor","HvR.p.value")
+
+
+# write a for loop to grep the subcellular location terms and test for association with significance of protein buffering 
+for (i in 1:length(YRI.expression.features[1,])){
+
+  HvC.cor.test <- cor.test(-log10(protein.buffering.results.YRI$HvC.pval), YRI.expression.features[,i])
+  RvC.cor.test <- cor.test(-log10(protein.buffering.results.YRI$RvC.pval), YRI.expression.features[,i])
+  RvH.cor.test <- cor.test(-log10(protein.buffering.results.YRI$RvH.pval), YRI.expression.features[,i])
+  
+  Enrichment.results[i,] <- c(names(YRI.expression.features)[i],HvC.cor.test$estimate,HvC.cor.test$p.value,RvC.cor.test$estimate,RvC.cor.test$p.value,RvH.cor.test$estimate,RvH.cor.test$p.value)
+}
+
+Enrichment.results
+
+###########
+# write YRI transcipt level variation enrichment resutls to TableS6
+
+tableS6 <- Enrichment.results[1:6,]
+
+cor.dir <- substring(as.matrix(tableS6),1,1)
+cor.dir[cor.dir != "-"] <- "+"
+
+tableS6[,c(2,4,6)] <- cor.dir[,c(2,4,6)]
+
+
+tableS6[,c(3,5,7)] <- format(as.numeric(as.matrix(tableS6[,c(3,5,7)])),digit=3)
+
+#write.csv(tableS6,"../../tables/tableS6.csv", quote = F,row.names = F)
+######
+
+
+```
+
+
+Make plots
+set cut off at FWER 0.05
+```{r}
+#HvC
+
+# RNA
+ buffered.RNA.sd <- protein.buffering.results.YRI$RNA.sd[p.adjust(protein.buffering.results.YRI$HvC.pval,method = "bonferroni") < 0.05]
+
+  background.RNA.sd <- protein.buffering.results.YRI$RNA.sd[!p.adjust(protein.buffering.results.YRI$HvC.pval,method = "bonferroni") < 0.05]
+
+HvC.mean.sd.buffered <- mean(buffered.RNA.sd, na.rm = T)
+HvC.sd.sd.buffered <- sd(buffered.RNA.sd, na.rm = T)
+HvC.se.sd.buffered <- HvC.sd.sd.buffered/sqrt(length(buffered.RNA.sd))
+   
+HvC.mean.sd.background <- mean(background.RNA.sd, na.rm = T)
+HvC.sd.sd.background <- sd(background.RNA.sd, na.rm = T)
+HvC.se.sd.background <- HvC.sd.sd.background/sqrt(length(background.RNA.sd))
+
+wilcox.test(buffered.RNA.sd,background.RNA.sd,alternative = "greater")
+
+plot(c(1:4),c("",HvC.mean.sd.background,HvC.mean.sd.buffered,""), ylim = c(0.2,0.6),pch = 19,ylab = "standard deviation", main = "Cross primate buffered genes have higher variation in YRI transcript levels",xaxt="n", cex = 0.5, col = rgb(1,0.5,0), xlab = "")
+axis(1,at = c(1:4),labels = c("","background","buffered",""),tick = FALSE)
+arrows(c(1:4), c(0,HvC.mean.sd.background-HvC.se.sd.background,HvC.mean.sd.buffered-HvC.se.sd.background,0), c(1:4),c(0,HvC.mean.sd.background+HvC.se.sd.background,HvC.mean.sd.buffered+HvC.se.sd.background,0), length=0, angle=90, code=3, lwd = 5, col = rgb(1,0.5,0,0.5))
+
+
+# protein 
+ buffered.protien.sd <- protein.buffering.results.YRI$protein.sd[p.adjust(protein.buffering.results.YRI$HvC.pval,method = "bonferroni") < 0.05]
+
+  background.protein.sd <- protein.buffering.results.YRI$protein.sd[!p.adjust(protein.buffering.results.YRI$HvC.pval,method = "bonferroni") < 0.05]
+
+HvC.mean.sd.buffered <- mean(buffered.protien.sd, na.rm = T)
+HvC.sd.sd.buffered <- sd(buffered.protien.sd, na.rm = T)
+HvC.se.sd.buffered <- HvC.sd.sd.buffered/sqrt(length(buffered.protien.sd))
+   
+HvC.mean.sd.background <- mean(background.protein.sd, na.rm = T)
+HvC.sd.sd.background <- sd(background.protein.sd, na.rm = T)
+HvC.se.sd.background <- HvC.sd.sd.background/sqrt(length(background.protein.sd))
+
+wilcox.test(buffered.protien.sd,background.protein.sd,alternative = "less")
+
+
+points(c(1:4),c("",HvC.mean.sd.background,HvC.mean.sd.buffered,""),pch = 19, cex = 0.5, col = rgb(0,0,0))
+
+arrows(c(1:4), c(0,HvC.mean.sd.background-HvC.se.sd.background,HvC.mean.sd.buffered-HvC.se.sd.background,0), c(1:4),c(0,HvC.mean.sd.background+HvC.se.sd.background,HvC.mean.sd.buffered+HvC.se.sd.background,0), length=0, angle=90, code=3, lwd = 5, col = rgb(0,0,0,0.5))
+
+legend("topright", inset=c(-0.2,0),legend = c("transcript","protein"),col = c("orange","black"),pch = 19,cex = 0.5,bty = "n",xpd = TRUE)
+
+
+
+# supplement
+
+#RvC
+
+# RNA
+buffered.RNA.sd <- protein.buffering.results.YRI$RNA.sd[p.adjust(protein.buffering.results.YRI$RvC.pval,method = "bonferroni") < 0.05]
+
+background.RNA.sd <- protein.buffering.results.YRI$RNA.sd[!p.adjust(protein.buffering.results.YRI$RvC.pval,method = "bonferroni") < 0.05]
+
+RvC.mean.sd.buffered <- mean(buffered.RNA.sd, na.rm = T)
+RvC.sd.sd.buffered <- sd(buffered.RNA.sd, na.rm = T)
+RvC.se.sd.buffered <- RvC.sd.sd.buffered/sqrt(length(buffered.RNA.sd))
+
+RvC.mean.sd.background <- mean(background.RNA.sd, na.rm = T)
+RvC.sd.sd.background <- sd(background.RNA.sd, na.rm = T)
+RvC.se.sd.background <- RvC.sd.sd.background/sqrt(length(background.RNA.sd))
+
+wilcox.test(buffered.RNA.sd,background.RNA.sd,alternative = "greater")
+
+plot(c(1:4),c("",RvC.mean.sd.background,RvC.mean.sd.buffered,""), ylim = c(0.2,0.6),pch = 19,ylab = "standard deviation", main = "Cross primate buffered genes have higher variation in YRI transcript levels",xaxt="n", cex = 0.5, col = rgb(1,0.5,0), xlab = "")
+axis(1,at = c(1:4),labels = c("","background","buffered",""),tick = FALSE)
+arrows(c(1:4), c(0,RvC.mean.sd.background-RvC.se.sd.background,RvC.mean.sd.buffered-RvC.se.sd.background,0), c(1:4),c(0,RvC.mean.sd.background+RvC.se.sd.background,RvC.mean.sd.buffered+RvC.se.sd.background,0), length=0, angle=90, code=3, lwd = 5, col = rgb(1,0.5,0,0.5))
+
+
+# protein 
+buffered.protien.sd <- protein.buffering.results.YRI$protein.sd[p.adjust(protein.buffering.results.YRI$RvC.pval,method = "bonferroni") < 0.05]
+
+background.protein.sd <- protein.buffering.results.YRI$protein.sd[!p.adjust(protein.buffering.results.YRI$RvC.pval,method = "bonferroni") < 0.05]
+
+RvC.mean.sd.buffered <- mean(buffered.protien.sd, na.rm = T)
+RvC.sd.sd.buffered <- sd(buffered.protien.sd, na.rm = T)
+RvC.se.sd.buffered <- RvC.sd.sd.buffered/sqrt(length(buffered.protien.sd))
+
+RvC.mean.sd.background <- mean(background.protein.sd, na.rm = T)
+RvC.sd.sd.background <- sd(background.protein.sd, na.rm = T)
+RvC.se.sd.background <- RvC.sd.sd.background/sqrt(length(background.protein.sd))
+
+wilcox.test(buffered.protien.sd,background.protein.sd,alternative = "less")
+
+
+points(c(1:4),c("",RvC.mean.sd.background,RvC.mean.sd.buffered,""),pch = 19, cex = 0.5, col = rgb(0,0,0))
+
+arrows(c(1:4), c(0,RvC.mean.sd.background-RvC.se.sd.background,RvC.mean.sd.buffered-RvC.se.sd.background,0), c(1:4),c(0,RvC.mean.sd.background+RvC.se.sd.background,RvC.mean.sd.buffered+RvC.se.sd.background,0), length=0, angle=90, code=3, lwd = 5, col = rgb(0,0,0,0.5))
+
+legend("topright", inset=c(-0.2,0),legend = c("transcript","protein"),col = c("orange","black"),pch = 19,cex = 0.5,bty = "n",xpd = TRUE)
+
+
+
+#RvH
+
+# RNA
+buffered.RNA.sd <- protein.buffering.results.YRI$RNA.sd[p.adjust(protein.buffering.results.YRI$RvH.pval,method = "bonferroni") < 0.05]
+
+background.RNA.sd <- protein.buffering.results.YRI$RNA.sd[!p.adjust(protein.buffering.results.YRI$RvH.pval,method = "bonferroni") < 0.05]
+
+RvH.mean.sd.buffered <- mean(buffered.RNA.sd, na.rm = T)
+RvH.sd.sd.buffered <- sd(buffered.RNA.sd, na.rm = T)
+RvH.se.sd.buffered <- RvH.sd.sd.buffered/sqrt(length(buffered.RNA.sd))
+
+RvH.mean.sd.background <- mean(background.RNA.sd, na.rm = T)
+RvH.sd.sd.background <- sd(background.RNA.sd, na.rm = T)
+RvH.se.sd.background <- RvH.sd.sd.background/sqrt(length(background.RNA.sd))
+
+wilcox.test(buffered.RNA.sd,background.RNA.sd,alternative = "greater")
+
+plot(c(1:4),c("",RvH.mean.sd.background,RvH.mean.sd.buffered,""), ylim = c(0.2,0.6),pch = 19,ylab = "standard deviation", main = "Cross primate buffered genes have higher variation in YRI transcript levels",xaxt="n", cex = 0.5, col = rgb(1,0.5,0), xlab = "")
+axis(1,at = c(1:4),labels = c("","background","buffered",""),tick = FALSE)
+arrows(c(1:4), c(0,RvH.mean.sd.background-RvH.se.sd.background,RvH.mean.sd.buffered-RvH.se.sd.background,0), c(1:4),c(0,RvH.mean.sd.background+RvH.se.sd.background,RvH.mean.sd.buffered+RvH.se.sd.background,0), length=0, angle=90, code=3, lwd = 5, col = rgb(1,0.5,0,0.5))
+
+
+# protein 
+buffered.protien.sd <- protein.buffering.results.YRI$protein.sd[p.adjust(protein.buffering.results.YRI$RvH.pval,method = "bonferroni") < 0.05]
+
+background.protein.sd <- protein.buffering.results.YRI$protein.sd[!p.adjust(protein.buffering.results.YRI$RvH.pval,method = "bonferroni") < 0.05]
+
+RvH.mean.sd.buffered <- mean(buffered.protien.sd, na.rm = T)
+RvH.sd.sd.buffered <- sd(buffered.protien.sd, na.rm = T)
+RvH.se.sd.buffered <- RvH.sd.sd.buffered/sqrt(length(buffered.protien.sd))
+
+RvH.mean.sd.background <- mean(background.protein.sd, na.rm = T)
+RvH.sd.sd.background <- sd(background.protein.sd, na.rm = T)
+RvH.se.sd.background <- RvH.sd.sd.background/sqrt(length(background.protein.sd))
+
+wilcox.test(buffered.protien.sd,background.protein.sd,alternative = "less")
+
+
+points(c(1:4),c("",RvH.mean.sd.background,RvH.mean.sd.buffered,""),pch = 19, cex = 0.5, col = rgb(0,0,0))
+
+arrows(c(1:4), c(0,RvH.mean.sd.background-RvH.se.sd.background,RvH.mean.sd.buffered-RvH.se.sd.background,0), c(1:4),c(0,RvH.mean.sd.background+RvH.se.sd.background,RvH.mean.sd.buffered+RvH.se.sd.background,0), length=0, angle=90, code=3, lwd = 5, col = rgb(0,0,0,0.5))
+
+legend("topright", inset=c(-0.2,0),legend = c("transcript","protein"),col = c("orange","black"),pch = 19,cex = 0.5,bty = "n",xpd = TRUE)
+
+
+
+ 
+```
+
+gene expression variation in YRI across multiple Human-chimp buffering significance cutoffs
+```{r}
+
+# HvC
+#SD
+sd.by.pvalue <- list()
+for (i in 1:4){ 
+  sd.by.pvalue[[i]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$HvC.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$HvC.pval) <i*2) ]
+}
+sd.by.pvalue[[5]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$HvC.pval) > 8)]
+
+HvC.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+HvC.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+HvC.se.sd.by.pval <- HvC.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+   
+plot(c(1:5),HvC.mean.sd.by.pval, ylim = c(0,1),pch = 19,ylab = "standard deviation", xlab = ("-log10(p-value)"), main = "PT buffered genes",xaxt="n", cex = 0.5, col = rgb(0,0,0,0.5))
+axis(1,at = (1:5),labels = c("0~2","2~4","4~6","6~8","8~"))
+
+
+arrows(c(1:5), HvC.mean.sd.by.pval-HvC.se.sd.by.pval, c(1:5), HvC.mean.sd.by.pval+HvC.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(0,0,0,0.5))
+
+#rna 
+
+sd.by.pvalue <- list()
+for (i in 1:4){ 
+  sd.by.pvalue[[i]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$HvC.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$HvC.pval) <i*2) ]
+}
+sd.by.pvalue[[5]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$HvC.pval) > 8)]
+
+HvC.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+HvC.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+HvC.se.sd.by.pval <- HvC.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+   
+
+
+points(c(1:5),HvC.mean.sd.by.pval,pch = 19, cex = 0.5, col = rgb(1,0.5,0,0.5))
+
+arrows(c(1:5), HvC.mean.sd.by.pval-HvC.se.sd.by.pval, c(1:5), HvC.mean.sd.by.pval+HvC.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(1,0.5,0,0.5))
+
+
+legend("topleft", legend = c("Transcript","Protein"),col = c("orange","black"),pch = 19,cex = 0.5,bty = "n",xpd = TRUE)
+
+
+######
+# fig 3f
+# pdf("../../figures/Fig3f.pdf", width = 4, height = 4)
+# 
+# # HvC
+# #SD
+# sd.by.pvalue <- list()
+# for (i in 1:4){ 
+#   sd.by.pvalue[[i]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$HvC.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$HvC.pval) <i*2) ]
+# }
+# sd.by.pvalue[[5]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$HvC.pval) > 8)]
+# 
+# HvC.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+# HvC.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+# HvC.se.sd.by.pval <- HvC.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+#    
+# plot(c(1:5),HvC.mean.sd.by.pval, ylim = c(0,1),pch = 19,ylab = "standard deviation", xlab = ("-log10(p-value)"), main = "Variation in YRI expression for \n post-translationally buffered genes",xaxt="n", cex = 0.5, cex.main= 0.75, col = rgb(0,0,0,0.5))
+# axis(1,at = (1:5),labels = c("0~2","2~4","4~6","6~8","8~"))
+# 
+# 
+# arrows(c(1:5), HvC.mean.sd.by.pval-HvC.se.sd.by.pval, c(1:5), HvC.mean.sd.by.pval+HvC.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(0,0,0,0.5))
+# 
+# #rna 
+# 
+# sd.by.pvalue <- list()
+# for (i in 1:4){ 
+#   sd.by.pvalue[[i]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$HvC.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$HvC.pval) <i*2) ]
+# }
+# sd.by.pvalue[[5]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$HvC.pval) > 8)]
+# 
+# HvC.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+# HvC.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+# HvC.se.sd.by.pval <- HvC.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+#    
+# 
+# 
+# points(c(1:5),HvC.mean.sd.by.pval,pch = 19, cex = 0.5, col = rgb(1,0.5,0,0.5))
+# 
+# arrows(c(1:5), HvC.mean.sd.by.pval-HvC.se.sd.by.pval, c(1:5), HvC.mean.sd.by.pval+HvC.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(1,0.5,0,0.5))
+# 
+# 
+# legend("topleft",legend = c("Transcript","Protein"),col = c("orange","black"),pch = 19,cex = 0.75,bty = "n",xpd = TRUE)
+# 
+# 
+# 
+# dev.off()
+
+######
+
+## supplement
+
+# RvC
+#SD
+sd.by.pvalue <- list()
+for (i in 1:4){ 
+  sd.by.pvalue[[i]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$RvC.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$RvC.pval) <i*2) ]
+}
+sd.by.pvalue[[5]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$RvC.pval) > 8)]
+
+RvC.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+RvC.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+RvC.se.sd.by.pval <- RvC.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+
+plot(c(1:5),RvC.mean.sd.by.pval, ylim = c(0,1),pch = 19,ylab = "standard deviation", xlab = ("-log10(p-value)"), main = "PT buffered genes",xaxt="n", cex = 0.5, col = rgb(0,0,0,0.5))
+axis(1,at = (1:5),labels = c("0~2","2~4","4~6","6~8","8~"))
+
+
+arrows(c(1:5), RvC.mean.sd.by.pval-RvC.se.sd.by.pval, c(1:5), RvC.mean.sd.by.pval+RvC.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(0,0,0,0.5))
+
+#rna 
+
+sd.by.pvalue <- list()
+for (i in 1:4){ 
+  sd.by.pvalue[[i]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$RvC.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$RvC.pval) <i*2) ]
+}
+sd.by.pvalue[[5]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$RvC.pval) > 8)]
+
+RvC.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+RvC.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+RvC.se.sd.by.pval <- RvC.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+
+
+
+points(c(1:5),RvC.mean.sd.by.pval,pch = 19, cex = 0.5, col = rgb(1,0.5,0,0.5))
+
+arrows(c(1:5), RvC.mean.sd.by.pval-RvC.se.sd.by.pval, c(1:5), RvC.mean.sd.by.pval+RvC.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(1,0.5,0,0.5))
+
+
+######
+# fig 3 S4a
+# pdf("../../figures/Fig3S4a.pdf", width = 4, height = 4)
+# 
+# # RvC
+# #SD
+# sd.by.pvalue <- list()
+# for (i in 1:4){ 
+#   sd.by.pvalue[[i]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$RvC.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$RvC.pval) <i*2) ]
+# }
+# sd.by.pvalue[[5]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$RvC.pval) > 8)]
+# 
+# RvC.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+# RvC.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+# RvC.se.sd.by.pval <- RvC.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+# 
+# plot(c(1:5),RvC.mean.sd.by.pval, ylim = c(0,1),pch = 19,ylab = "standard deviation", xlab = ("-log10(p-value)"), main = "RvC: Variation in YRI expression for \n post-translationally buffered genes",xaxt="n", cex = 0.5, cex.main= 0.75, col = rgb(0,0,0,0.5))
+# axis(1,at = (1:5),labels = c("0~2","2~4","4~6","6~8","8~"))
+# 
+# 
+# arrows(c(1:5), RvC.mean.sd.by.pval-RvC.se.sd.by.pval, c(1:5), RvC.mean.sd.by.pval+RvC.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(0,0,0,0.5))
+# 
+# #rna 
+# 
+# sd.by.pvalue <- list()
+# for (i in 1:4){ 
+#   sd.by.pvalue[[i]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$RvC.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$RvC.pval) <i*2) ]
+# }
+# sd.by.pvalue[[5]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$RvC.pval) > 8)]
+# 
+# RvC.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+# RvC.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+# RvC.se.sd.by.pval <- RvC.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+# 
+# 
+# 
+# points(c(1:5),RvC.mean.sd.by.pval,pch = 19, cex = 0.5, col = rgb(1,0.5,0,0.5))
+# 
+# arrows(c(1:5), RvC.mean.sd.by.pval-RvC.se.sd.by.pval, c(1:5), RvC.mean.sd.by.pval+RvC.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(1,0.5,0,0.5))
+# 
+# 
+# legend("topleft",legend = c("Transcript","Protein"),col = c("orange","black"),pch = 19,cex = 0.75,bty = "n",xpd = TRUE)
+# 
+# 
+# 
+# dev.off()
+
+######
+
+
+
+# RvH
+#SD
+sd.by.pvalue <- list()
+for (i in 1:4){ 
+  sd.by.pvalue[[i]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$RvH.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$RvH.pval) <i*2) ]
+}
+sd.by.pvalue[[5]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$RvH.pval) > 8)]
+
+RvH.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+RvH.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+RvH.se.sd.by.pval <- RvH.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+
+plot(c(1:5),RvH.mean.sd.by.pval, ylim = c(0,1),pch = 19,ylab = "standard deviation", xlab = ("-log10(p-value)"), main = "PT buffered genes",xaxt="n", cex = 0.5, col = rgb(0,0,0,0.5))
+axis(1,at = (1:5),labels = c("0~2","2~4","4~6","6~8","8~"))
+
+
+arrows(c(1:5), RvH.mean.sd.by.pval-RvH.se.sd.by.pval, c(1:5), RvH.mean.sd.by.pval+RvH.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(0,0,0,0.5))
+
+#rna 
+
+sd.by.pvalue <- list()
+for (i in 1:4){ 
+  sd.by.pvalue[[i]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$RvH.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$RvH.pval) <i*2) ]
+}
+sd.by.pvalue[[5]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$RvH.pval) > 8)]
+
+RvH.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+RvH.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+RvH.se.sd.by.pval <- RvH.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+
+
+
+points(c(1:5),RvH.mean.sd.by.pval,pch = 19, cex = 0.5, col = rgb(1,0.5,0,0.5))
+
+arrows(c(1:5), RvH.mean.sd.by.pval-RvH.se.sd.by.pval, c(1:5), RvH.mean.sd.by.pval+RvH.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(1,0.5,0,0.5))
+
+######
+# fig 3 S4b
+# pdf("../../figures/Fig3S4b.pdf", width = 4, height = 4)
+# 
+# # RvH
+# #SD
+# sd.by.pvalue <- list()
+# for (i in 1:4){ 
+#   sd.by.pvalue[[i]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$RvH.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$RvH.pval) <i*2) ]
+# }
+# sd.by.pvalue[[5]] <- protein.buffering.results.YRI$protein.sd[which(-log10(protein.buffering.results.YRI$RvH.pval) > 8)]
+# 
+# RvH.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+# RvH.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+# RvH.se.sd.by.pval <- RvH.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+# 
+# plot(c(1:5),RvH.mean.sd.by.pval, ylim = c(0,1),pch = 19,ylab = "standard deviation", xlab = ("-log10(p-value)"), main = "RvH: Variation in YRI expression for \n post-translationally buffered genes",xaxt="n", cex = 0.5, cex.main= 0.75, col = rgb(0,0,0,0.5))
+# axis(1,at = (1:5),labels = c("0~2","2~4","4~6","6~8","8~"))
+# 
+# 
+# arrows(c(1:5), RvH.mean.sd.by.pval-RvH.se.sd.by.pval, c(1:5), RvH.mean.sd.by.pval+RvH.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(0,0,0,0.5))
+# 
+# #rna 
+# 
+# sd.by.pvalue <- list()
+# for (i in 1:4){ 
+#   sd.by.pvalue[[i]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$RvH.pval) > 2*(i-1) & -log10(protein.buffering.results.YRI$RvH.pval) <i*2) ]
+# }
+# sd.by.pvalue[[5]] <- protein.buffering.results.YRI$RNA.sd[which(-log10(protein.buffering.results.YRI$RvH.pval) > 8)]
+# 
+# RvH.mean.sd.by.pval <- unlist(lapply(sd.by.pvalue,mean))
+# RvH.sd.sd.by.pval <- unlist(lapply(sd.by.pvalue,sd))
+# RvH.se.sd.by.pval <- RvH.sd.sd.by.pval/sqrt(lengths(sd.by.pvalue))
+# 
+# 
+# 
+# points(c(1:5),RvH.mean.sd.by.pval,pch = 19, cex = 0.5, col = rgb(1,0.5,0,0.5))
+# 
+# arrows(c(1:5), RvH.mean.sd.by.pval-RvH.se.sd.by.pval, c(1:5), RvH.mean.sd.by.pval+RvH.se.sd.by.pval, length=0, angle=90, code=3, lwd = 4, col = rgb(1,0.5,0,0.5))
+# 
+# 
+# legend("topleft",legend = c("Transcript","Protein"),col = c("orange","black"),pch = 19,cex = 0.75,bty = "n",xpd = TRUE)
+# 
+# 
+# 
+# dev.off()
+
+######
+
+
+
+```
+
+
+Subsample to match expression level with buffered genes
+
+```{r}
+# for HvC
+
+buff.hist <- hist(protein.buffering.results.YRI$RNA.mean[protein.buffering.results.YRI$HvC.pval < 0.01], breaks = 10, plot = FALSE)
+
+buff.hist$breaks -> exp.intervals
+buff.hist$density -> exp.intervals.prob
+
+
+protein.buffering.results.YRI$prob <- 0
+for (i in 1:length(exp.intervals.prob)) {
+  which(exp.intervals[i] < protein.buffering.results.YRI$RNA.mean & protein.buffering.results.YRI$RNA.mean < exp.intervals[i+1])-> interval.index  
+  protein.buffering.results.YRI$prob[interval.index] <- exp.intervals.prob[i]/length(interval.index)
+}
+
+
+
+#####
+#create index base on row number, used row name BAD idea, carry over from the original data frame
+c(1:length(protein.buffering.results.YRI[,1]))->protein.buffering.results.YRI$index
+sample(protein.buffering.results.YRI$index,size=400,replace=F, prob=protein.buffering.results.YRI$prob)->sampling.index
+
+#plot results
+# mean
+boxplot(protein.buffering.results.YRI$RNA.mean[-log10(protein.buffering.results.YRI$HvC.pval) > 2], protein.buffering.results.YRI$RNA.mean[sampling.index] , outline=F,main="YRI RNA mean expression for buffered genes", ylab="log2 expression")
+axis(1, 1:2, labels=c("buffered","non-buffered")) 
+
+boxplot(protein.buffering.results.YRI$RNA.sd[-log10(protein.buffering.results.YRI$HvC.pval) > 2], protein.buffering.results.YRI$RNA.sd[sampling.index], outline=F, notch=T ,main="YRI RNA expression sd for buffered genes", ylab="sd of log2 expression")
+axis(1, 1:2, labels=c("buffered","non-buffered")) 
+
+
+#
+
+plot(density(protein.buffering.results.YRI$RNA.sd[-log10(protein.buffering.results.YRI$HvC.pval) > 2]), main="YRI expression sd for PT buffered genes", xlab="sd of log2 mean expression", ylim=c(0,4))
+sampling.index<-c()
+sampling.sd.median<-c()
+for (i in 1:1000){ 
+sample(protein.buffering.results.YRI$index,size=400,replace=F, prob=protein.buffering.results.YRI$prob)->sampling.index
+lines(density(protein.buffering.results.YRI$RNA.sd[sampling.index]), col="blue")
+sampling.sd.median[i]<-median(protein.buffering.results.YRI$RNA.sd[sampling.index])
+}
+lines(density(protein.buffering.results.YRI$RNA.sd[-log10(protein.buffering.results.YRI$HvC.pval) > 2]), col="red", lwd=3)
+legend("topright", c("buffer","nonbuffer"), lty=1 ,col=c("red","blue"))
+
+boxplot(sampling.sd.median,ylim=c(0.35,0.45))
+points(1,median(protein.buffering.results.YRI$RNA.sd[-log10(protein.buffering.results.YRI$HvC.pval) > 2]), col="red", pch=16)
+
+# assume normal to get p value
+pnorm(median(protein.buffering.results.YRI$RNA.sd[-log10(protein.buffering.results.YRI$HvC.pval) > 2]),mean=mean(sampling.sd.median),sd=sd(sampling.sd.median), lower.tail=F)
+
+# simply use the rank to estimate emperical p value
+
+length(which(median(protein.buffering.results.YRI$RNA.sd[-log10(protein.buffering.results.YRI$HvC.pval) > 2]) < sampling.sd.median))+1/length(sampling.sd.median)
+
+
+######
+
+# pdf("../../figures/Fig3S6a.pdf", width = 4, height = 4)
+# 
+# plot(density(protein.buffering.results.YRI$RNA.sd[-log10(protein.buffering.results.YRI$HvC.pval) > 2]), main="YRI transcript level variation estimated from subsampling", cex.main=0.75, xlab="standard deviation", ylim=c(0,4), xaxt='n')
+# axis(1,at = c(0,0.36,0.44,1,1.5),labels = c("0","","","1","1.5"))
+# sampling.index<-c()
+# sampling.sd.median<-c()
+# for (i in 1:1000){ 
+# sample(protein.buffering.results.YRI$index,size=400,replace=F, prob=protein.buffering.results.YRI$prob)->sampling.index
+# lines(density(protein.buffering.results.YRI$RNA.sd[sampling.index]), col="dark blue")
+# sampling.sd.median[i]<-median(protein.buffering.results.YRI$RNA.sd[sampling.index])
+# }
+# lines(density(protein.buffering.results.YRI$RNA.sd[-log10(protein.buffering.results.YRI$HvC.pval) > 2]), col="red", lwd=3)
+# legend("topright", c("buffered","background"), lty=1, lwd = 2,  bty = "n" ,col=c("red","dark blue"))
+# dev.off()
+
+######
+
+######
+# pdf("../../figures/Fig3S6b.pdf", width = 4, height = 4)
+# 
+# boxplot(sampling.sd.median,ylim=c(0.35,0.45),yaxt="n",ylab="", cex.main=0.75, frame.plot = FALSE)
+# axis(4)
+# mtext('',4,line=2)
+# points(1,median(protein.buffering.results.YRI$RNA.sd[-log10(protein.buffering.results.YRI$HvC.pval) > 2]), col="red", pch=16)
+# 
+# dev.off()
+
+######
+```
+
+
+
+
+
+

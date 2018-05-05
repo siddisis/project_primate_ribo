@@ -1,0 +1,18 @@
+{
+    "contents" : "species.label<-as.factor(substring(colnames(log2.HRC.plus.mm4H.rpkm.speLength.Q),1,1))\nCRpvalue<-c()\nCR.effect <- c()\nCR.se<-c()\nfor (i in 1:length(log2.HRC.plus.mm4H.rpkm.speLength.Q[,1])){\n  fullModel<-lm(log2.HRC.plus.mm4H.rpkm.speLength.Q[i,c(1:5,12:16)]~species.label[c(1:5,12:16)])\n  CRpvalue[i]<-summary(fullModel)$coefficients[2,4]\n  CR.effect[i] <- summary(fullModel)$coefficients[2,1]\n  CR.se[i] <- summary(fullModel)$coefficients[2,2]\n  \n}\n\nHRpvalue<-c()\nHR.effect <- c()\nHR.se <- c()\n\nfor (i in 1:length(log2.HRC.plus.mm4H.rpkm.speLength.Q[,1])){\n  fullModel<-lm(log2.HRC.plus.mm4H.rpkm.speLength.Q[i,c(6:10,12:16)]~species.label[c(6:10,12:16)])\n  HRpvalue[i]<-summary(fullModel)$coefficients[2,4]\n  HR.effect[i] <- summary(fullModel)$coefficients[2,1]\n  HR.se[i] <- summary(fullModel)$coefficients[2,2]\n  \n}\n\nHCpvalue<-c()\nHC.effect <- c()\nHC.se <- c()\n\nfor (i in 1:length(log2.HRC.plus.mm4H.rpkm.speLength.Q[,1])){\n  fullModel<-lm(log2.HRC.plus.mm4H.rpkm.speLength.Q[i,c(1:10)]~species.label[c(1:10)])\n  HCpvalue[i]<-summary(fullModel)$coefficients[2,4]\n  HC.effect[i] <- summary(fullModel)$coefficients[2,1]\n  HC.se[i] <- summary(fullModel)$coefficients[2,2]\n  \n}\n\n\n\n\n\n\n\n",
+    "created" : 1445536432162.000,
+    "dirty" : true,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "1317193121",
+    "id" : "309FAE84",
+    "lastKnownWriteTime" : 4294967296,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "tempName" : "Untitled6"
+    },
+    "relative_order" : 5,
+    "source_on_save" : false,
+    "type" : "r_source"
+}

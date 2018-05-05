@@ -1,0 +1,8 @@
+,HvC.cor,HvC.pvalue,RvC.cor,RvC.pvalue,RvH.cor,RvH.pvalue
+Ubiquitination,+,2.20e-16,+,6.66e-16,+,2.20e-16
+Phosphorylation,+,2.51e-08,+,1.29e-02,+,4.40e-06
+Acetylation,+,2.20e-16,+,7.74e-08,+,2.39e-10
+Methylation,+,4.76e-05,+,1.34e-02,+,1.84e-04
+Sumoylation,+,3.74e-07,+,1.14e-03,+,2.07e-04
+O-GalNAc,-,3.76e-01,-,2.99e-01,+,7.98e-01
+O-GlcNAc,-,9.86e-01,+,6.18e-01,+,4.93e-02

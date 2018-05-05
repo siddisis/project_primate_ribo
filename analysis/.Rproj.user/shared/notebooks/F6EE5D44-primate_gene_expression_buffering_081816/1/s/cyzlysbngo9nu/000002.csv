@@ -1,0 +1,27 @@
+"0","ribo.ref <- ribo.batch.removed[,11]
+ribo.data <- ribo.batch.removed[,-11]
+ribo.weights <- ribo.voom.weights[,-11]
+RNA.ref <- RNA.batch.removed[,11]
+RNA.data <- RNA.batch.removed[,-11]
+RNA.weights <- RNA.voom.weights[,-11]
+# subset by rownames
+# find genes that are qunatified in all three data types 
+RNA.ribo.expressed <- intersect(rownames(RNA.data),  rownames(ribo.data)) 
+all.expressed<- intersect(RNA.ribo.expressed,rownames(HCR.protein.TMM.norm.ESNGlabeled))
+# number of genes quantified in all three data types
+length(all.expressed)
+"
+"1","[1]"
+"1"," 3286"
+"1","
+"
+"0","ribo.expressed.data<-ribo.data[rownames(ribo.data) %in% all.expressed,]"
+"0","ribo.expressed.weights<-ribo.weights[rownames(ribo.weights) %in% all.expressed,]"
+"0","ribo.expressed.ref <- ribo.ref[names(ribo.ref) %in% all.expressed]"
+"0","RNA.expressed.data<-RNA.data[rownames(RNA.data) %in% all.expressed,]"
+"0","RNA.expressed.weights<-RNA.weights[rownames(RNA.weights) %in% all.expressed,]"
+"0","RNA.expressed.ref <- RNA.ref[names(RNA.ref) %in% all.expressed]"
+"0","protein.expressed.data<- HCR.protein.TMM.norm.ESNGlabeled[rownames(HCR.protein.TMM.norm.ESNGlabeled) %in% all.expressed,]"
+"0","expressed.gene.names <- as.character(protein.expressed.data[,16])"
+"0","names(expressed.gene.names) <- rownames(protein.expressed.data)"
+"0","protein.expressed.data <- protein.expressed.data[,-16]"

@@ -1,0 +1,21 @@
+{
+    "collab_server" : "",
+    "contents" : "RNA.expressed.count[is.na(RNA.expressed.count)] <- 0 \nENSGID<-RNA.expressed.count[,1]\n\n\nspecies.label <- substring(names(RNA.expressed.count[,-1]),1,1)\ndesign <- model.matrix(~species.label)\n\n\nRNA.voom.transformed<-voom(RNA.expressed.count[,-1],design,normalize.method = \"scale\",plot = TRUE)\nboxplot(RNA.voom.transformed$E)\n\nRNA.batch.removed <- ComBat(dat = RNA.voom.transformed$E, mod = model.matrix(~ species.label),batch = as.factor(batch),par.prior = TRUE,prior.plots = FALSE)\nboxplot(RNA.batch.removed,outline=FALSE)\n\nRNA.fit <- lmFit(RNA.voom.transformed,design)\nRNA.test <- eBayes(RNA.fit)\n",
+    "created" : 1468524926743.000,
+    "dirty" : true,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "3823458586",
+    "id" : "1BDDE7FF",
+    "lastKnownWriteTime" : -5611883523985113088,
+    "last_content_update" : 1468529538545,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

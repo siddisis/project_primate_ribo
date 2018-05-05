@@ -1,0 +1,13 @@
+GO.ID,Term,NO. of genes associated,HvC.cor,RvC.cor,HvR.cor,HvC.fdr,RvC.fdr,HvR.fdr
+GO:0000184,nuclear-transcribed mRNA catabolic process & nonsense-mediated decay,51|3115,+,+,+,2.29e-13,8.13e-13,1.52e-13
+GO:0003723,RNA binding,192|2974,+,+,+,5.09e-07,2.59e-03,1.08e-05
+GO:0003735,structural constituent of ribosome,90|3076,+,+,+,2.11e-09,2.09e-03,3.73e-10
+GO:0006364,rRNA processing,107|3059,+,+,+,2.29e-13,8.80e-06,1.52e-13
+GO:0006412,translation,91|3075,+,+,+,9.45e-08,3.77e-05,3.92e-10
+GO:0006413,translational initiation,59|3107,+,+,+,2.29e-13,2.29e-13,1.52e-13
+GO:0006614,SRP-dependent cotranslational protein targeting to membrane,40|3126,+,+,+,2.29e-13,2.29e-13,1.52e-13
+GO:0015935,small ribosomal subunit,5|3161,+,+,+,5.08e-05,3.19e-06,3.07e-03
+GO:0019083,viral transcription,54|3112,+,+,+,2.29e-13,2.29e-13,1.52e-13
+GO:0022625,cytosolic large ribosomal subunit,23|3143,+,+,+,2.29e-13,1.26e-04,1.52e-13
+GO:0022627,cytosolic small ribosomal subunit,13|3153,+,+,+,1.46e-04,2.29e-13,1.52e-13
+GO:0030529,ribonucleoprotein complex,56|3110,+,+,+,6.29e-05,7.29e-03,1.95e-03

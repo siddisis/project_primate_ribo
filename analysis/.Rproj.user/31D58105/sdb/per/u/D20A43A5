@@ -1,0 +1,21 @@
+{
+    "collab_server" : "",
+    "contents" : "\n# HvR\n\n# slope\nr.squared <- format(cor(HvR.mappable.spe.effect,HvR.spe.effect,use = \"complete.obs\")^2,digits = 2)\n\nF1S8e <- ggplot(mapping = aes(x=HvR.mappable.spe.effect,y=HvR.spe.effect))+geom_point(size=1, alpha=0.3)+geom_abline()+xlab(\"mappability adjusted\")+ylab(\"original\")+ggtitle(\"translational level: log2(human/rhesus)\")+annotate(geom=\"text\",x=6,y=-7,label=paste(\"r^2 =\",r.squared)) \n\nF1S8e\n\n\n# ######\n# #save figure F1S8e as pdf\n# pdf(\"../../figures/Fig1S8e.pdf\", width = 4, height = 4)\n# F1S8e\n# dev.off()\n# \n# ######\n\n# p value  \nr.squared <- format(cor(-log10(HvR.mappable.spe.pval),-log10(HvR.spe.pval),use = \"complete.obs\")^2,digits = 2)\n\nF1S8f <- ggplot(mapping = aes(x=-log10(HvR.mappable.spe.pval),y=-log10(HvR.spe.pval)))+geom_point(size=1, alpha=0.3)+geom_abline()+xlab(\"mappability adjusted\")+ylab(\"original\")+ggtitle(\"-log10(p-value) human vs rhesus\")+annotate(geom=\"text\",x=9,y=2,label=paste(\"r^2 =\",r.squared)) \n\nF1S8f\n\n# ######\n# #save figure F1S8f as pdf\n# \n# pdf(\"../../figures/Fig1S8f.pdf\", width = 4, height = 4)\n# F1S8f\n# dev.off()\n# \n# \n# ######\n\n",
+    "created" : 1514920425126.000,
+    "dirty" : true,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "3711567519",
+    "id" : "D20A43A5",
+    "lastKnownWriteTime" : 6,
+    "last_content_update" : 1514920755673,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

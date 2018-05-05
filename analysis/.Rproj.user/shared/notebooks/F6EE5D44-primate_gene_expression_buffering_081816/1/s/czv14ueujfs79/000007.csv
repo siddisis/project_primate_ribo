@@ -1,0 +1,13 @@
+"0","#figure 3d
+pdf(""../../figures/Fig3d.pdf"", width = 4, height = 3)
+plot(c(1:5),HvC.mean.pvalue.by.dN, ylim = c(0,0.04),pch = 19,ylab = ""Ka"", xlab = (""-log10(p-value)""), main = ""Post-translationally buffered genes are \n not enriched for nonsynonymous substitutions"",xaxt=""n"", cex = 0.5, col = rgb(0,0,0), cex.main=0.9)
+axis(1,at = (1:5),labels = c(""0~1"",""1~2"",""2~3"",""3~4"",""4~""))
+arrows(c(1:5), HvC.mean.pvalue.by.dN-HvC.se.pvalue.by.dN, c(1:5), HvC.mean.pvalue.by.dN+HvC.se.pvalue.by.dN, length=0, angle=90, code=3, lwd = 4, col = rgb(0,0,0,0.5))
+dev.off()
+"
+"1","null device "
+"1","
+"
+"1","          1 "
+"1","
+"

@@ -1,0 +1,7 @@
+feature,HvC.cor,HvC.p.value,RvC.cor,RvC.p.value,HvR.cor,HvR.p.value
+RNA.mean,+,2.02e-03,+,5.76e-01,-,7.29e-01
+RNA.sd,+,4.47e-07,+,5.44e-05,+,1.50e-07
+RNA.TMM.mean,+,2.02e-03,+,5.76e-01,-,7.29e-01
+RNA.TMM.sd,+,1.17e-06,+,1.05e-04,+,1.29e-06
+RNA.QN.mean,+,1.82e-03,+,5.70e-01,-,7.38e-01
+RNA.QN.sd,+,1.72e-08,+,1.18e-05,+,2.40e-08
